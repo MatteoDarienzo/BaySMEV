@@ -23,8 +23,8 @@ Acknowledegments:
 
 This research has been supported by the INTENSE project (raINfall exTremEs and their impacts: from the local to the National ScalE) funded by the European Union - Next Generation EU in the framework of PRIN (Progetti di ricerca di Rilevante Interesse Nazionale) programme (grant 2022ZC2522).
 BaySMEV codes are used for paper in preparation Darienzo et al. ("Recent changes in extreme precipitation across Italy using satellite products").
-BaySMEV codes make use of other referenced codes from \citet{MARRA2019280} downloadable from \url{https://zenodo.org/records/11934843} (SMEV methodology) and \url{https://zenodo.org/records/15047817} (non-stationary framework) 
-and from github (\url{https://github.com/MatteoDarienzo/BayDERS} and \url{https://github.com/BaM-tools/BaM}).
+BaySMEV codes make use of other referenced codes of Marra et al., 2019 downloadable from https://zenodo.org/records/11934843 (SMEV methodology) and https://zenodo.org/records/15047817 (non-stationary model) and of Darienzo et al., 2021 downloadable from https://github.com/MatteoDarienzo/BayDERS (segmentation method) and https://github.com/BaM-tools/BaM (Bayesian modelling).
+
 It makes use of the following R packages: "rstudioapi",
          "methods", "lattice", "gridExtra", "reshape","reshape2", "ggplot2", "extrafont",
          "grid", "gtable", "chron", "coda", "RColorBrewer", "cowplot", "viridis",
