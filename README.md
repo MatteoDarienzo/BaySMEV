@@ -5,7 +5,7 @@ BAYesian Simplified Metastatistical Extreme Value method
 
 - Author: Matteo Darienzo (University of Padua, Padua, Italy)
 
-- Contributions from: Francesco Marra.
+- Contributions from: Francesco Marra (University of Padua, Padua, Italy).
 
 - Year: 2025
 
@@ -18,7 +18,7 @@ BAYesian Simplified Metastatistical Extreme Value method
 
 Software BaySMEV (BAYesian Simplified Metastatistical Extreme Value) provides tools for rainfall extreme analysis with both stationary and nonstationary models within a Bayesian framework, which provides results with qunatitative uncertainty.
 It is the Bayesian version of SMEV method (Marra et al., 2019, Marani and Ignaccolo, 2015).
-Source codes are written in R.
+BaySMEV source codes are written in R.
 
 
 # Acknowledegments:
@@ -27,7 +27,7 @@ This research has been supported by the INTENSE project (raINfall exTremEs and t
 
 BaySMEV codes have been used for paper Darienzo et al. ("Recent changes in extreme precipitation across Italy using satellite products", in preparation).
 
-BaySMEV makes also use of other referenced codes of Marra et al., 2019 downloadable from https://zenodo.org/records/11934843 (SMEV methodology) and https://zenodo.org/records/15047817 (non-stationary model).
+BaySMEV takes inspiration from matlab codes of Marra et al., 2019 downloadable from https://zenodo.org/records/11934843 (SMEV methodology, including storm separation) and https://zenodo.org/records/15047817 (for the non-stationary model implementation).
 
 BaySMEV makes use of the following R packages: "rstudioapi",
          "methods", "lattice", "gridExtra", "reshape","reshape2", "ggplot2", "extrafont",
