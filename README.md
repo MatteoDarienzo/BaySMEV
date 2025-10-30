@@ -35,3 +35,15 @@ BaySMEV makes use of the following R packages: "rstudioapi",
          "psych",  "mosaicData", "tidyr", "lubridate", "Kendall", "trend", "tidyverse", 
          "latex2exp", "dplyr", "png","pracma",  "CFtime", "ggpubr",
          "raster", "maptools","sf", "terra", "exactextractr", "ncdf4",  "rnaturalearth".
+
+
+# Disclaimer:
+
+Please, notice that BaySMEV is an experimental software. Further testing and investigation are required for validating the proposed analysis. 
+We are not responsible for any loss (of data, profits, business, customers, orders, other costs or disturbances) derived by their use in the research or operational practice. 
+The authorized user accepts the risks associated with using the software given its nature of free software. 
+It is reserved to expert Users (developers or professionals) having prior knowledge in computer science, hydrology and statistics.
+
+For any question or feedback please contact us at:
+
+- matteo.darienzo@unipd.it
