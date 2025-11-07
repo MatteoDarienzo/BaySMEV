@@ -17,8 +17,7 @@ BAYesian Simplified Metastatistical Extreme Value method
 # Purpose:
 
 Software BaySMEV (BAYesian Simplified Metastatistical Extreme Value) provides the Bayesian version of SMEV method (Marra et al., 2019, Marani and Ignaccolo, 2015). 
-It contains tools for rainfall extreme analysis with both stationary and non-stationary models within a Bayesian framework, which provides results with quantitative uncertainty. 
-
+It contains tools for rainfall extreme analysis with both stationary and non-stationary models within a Bayesian framework. The MLE method is also here available as per the version of Marra et al., 2019 (https://zenodo.org/records/15047817).
 
 
 # Method:
@@ -29,7 +28,7 @@ It contains tools for rainfall extreme analysis with both stationary and non-sta
 
 - F is assumed as a 2-parameters Weibull distribution with a left-censoring approach.
 
-- Scale and shape parameters of the Weibull distribution are estimated by means of 1) MLE with fminsearch minimization function or 2) Bayesian inference with STAN package.
+- Scale and shape parameters of the Weibull distribution are estimated by means of  (choice of the user):  1) MLE with fminsearch minimization function or 2) Bayesian inference with STAN package.
 
 - BaySMEV source codes are written in R.
 
