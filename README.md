@@ -67,22 +67,22 @@ For any question or feedback please contact us at:
 
 Simplified function for SMEV analysis with most of settings with values by default. Import function from "/module_smev_main.R".
 
-s_base <- smev_analysis_main(rain.df           = rain.df,
-                             name_project      = 'DEMO',
-                             dir_results       = dir_results,
-                             date_initial      = date_initial, 
-                             date_final        = date_final,
-                             time_resolution   = 60,
-                             min_ev_duration   = 30,
-                             separation_in_min = 1440,
-                             duration          = c(1,3,6,24)*60,
-                             thr_leftcens      = 0.9,                   
-                             priors            = priors,                               
-                             start_values      = c(0.7, 0, 5, 0),
-                             flag_smev_stat    = T,
-                             flag_smev_ns      = F,
-                             flag_smev_partns  = F,
-                             )
+         s_base <- smev_analysis_main(rain.df           = rain.df,
+                                      name_project      = 'DEMO',
+                                      dir_results       = dir_results,
+                                      date_initial      = date_initial, 
+                                      date_final        = date_final,
+                                      time_resolution   = 60,
+                                      min_ev_duration   = 30,
+                                      separation_in_min = 1440,
+                                      duration          = c(1,3,6,24)*60,
+                                      thr_leftcens      = 0.9,                   
+                                      priors            = priors,                               
+                                      start_values      = c(0.7, 0, 5, 0),
+                                      flag_smev_stat    = T,
+                                      flag_smev_ns      = F,
+                                      flag_smev_partns  = F,
+                                      )
 where:
 
 rain.df --> [dataframe] input rainfall timeseries dataframe. One column 'timestamps' with the dates in timestamp, and another column named 'y' with the rainfall values [mm] [real]. 
