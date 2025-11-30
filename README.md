@@ -85,41 +85,36 @@ Simplified function for SMEV analysis with most of settings with values by defau
                                       )
 where:
 
-rain.df --> [dataframe] input rainfall timeseries dataframe. One column 'timestamps' with the dates in timestamp, and another column named 'y' with the rainfall values [mm] [real]. 
+- rain.df --> [dataframe] input rainfall timeseries dataframe. One column 'timestamps' with the dates in timestamp, and another column named 'y' with the rainfall values [mm] [real]. 
 
-name_project --> [character] name of the folder where the results will be saved.
+- name_project --> [character] name of the folder where the results will be saved.
 
-dir_results --> [character] path to the folder where to the save results.
+- dir_results --> [character] path to the folder where to the save results.
 
-date_final --> [timestamp] final date for the analysis (ex: "2024-12-31 23:00:00")
+- date_final --> [timestamp] final date for the analysis (ex: "2024-12-31 23:00:00")
 
-date_initial --> [timestamp] initial date for the analysis (ex: "2001-01-01 00:00:00")
+- date_initial --> [timestamp] initial date for the analysis (ex: "2001-01-01 00:00:00")
 
-time_resolution --> [integer] Temporal resolution of the timeseries.
+- time_resolution --> [integer] Temporal resolution of the timeseries.
 
-min_ev_duration --> [integer] duration in minutes of an event, e.g., 30.
+- min_ev_duration --> [integer] duration in minutes of an event, e.g., 30.
 
-separation_in_min --> [integer] min time for event separation in minutes, e.g., 1440 (one day)
+- separation_in_min --> [integer] min time for event separation in minutes, e.g., 1440 (one day)
 
-duration --> [array] defines the rainfall durations (in minutes) that you want to analyse, e.g., c(1,3,6,24)*60 for 1h, 3h,6h,24h.
+- duration --> [array] defines the rainfall durations (in minutes) that you want to analyse, e.g., c(1,3,6,24)*60 for 1h, 3h,6h,24h.
 
-thr_leftcens --> [real] threshold percentile for the left censoring approach (e.g., 0.9 to censor 90% of data).  
+- thr_leftcens --> [real] threshold percentile for the left censoring approach (e.g., 0.9 to censor 90% of data).  
 
-priors --> [list of array] list of priors for smev the parameters (shape and scale) one list for each defined duration. 
+- priors --> [list of array] list of priors for smev the parameters (shape and scale) one list for each defined duration. 
          ex:
        
          #1h
-
          priors[[1]]=list()
-
-         priors[[1]]$shape_intercept =list("lognormal",log(0.7),0.4,0.7)   
-
+         priors[[1]]$shape_intercept =list("lognormal",log(0.7),0.4,0.7)
          priors[[1]]$shape_slope     =list("normal", 0,0.05,0)
-
-         priors[[1]]$scale_intercept =list("lognormal",1.45-0.7*log(1),0.5,exp(1.45-0.7*log(1)))    
-
+         priors[[1]]$scale_intercept =list("lognormal",1.45-0.7*log(1),0.5,exp(1.45-0.7*log(1)))
          priors[[1]]$scale_slope     =list("normal",0,0.1039-0.0039*(1),0)
 
-start_values --> [array] array of starting values for MCMC algorithm for posterior sampling. one value for each SMEV parameter: shape int, shape slope, scale int, scale slope = c(0.7, 0, 5, 0),
+- start_values --> [array] array of starting values for MCMC algorithm for posterior sampling. one value for each SMEV parameter: shape int, shape slope, scale int, scale slope = c(0.7, 0, 5, 0),
 
-flag_smev_stat, flag_smev_ns, flag_smev_partns --> [logical] flags fot computing different types of SMEV model: stationary, non-stationary, partial non-stationary modelds.
+- flag_smev_stat, flag_smev_ns, flag_smev_partns --> [logical] flags (T or F) fot computing different types of SMEV model: stationary, non-stationary, partial non-stationary modelds.
