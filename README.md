@@ -69,9 +69,9 @@ Simplified function for SMEV analysis with most of settings with values by defau
 
          s_base <- smev_analysis_main(rain.df           = rain.df,
                                       name_project      = 'DEMO',
-                                      dir_results       = dir_results,
-                                      date_initial      = date_initial, 
-                                      date_final        = date_final,
+                                      dir_results       = "",
+                                      date_initial      = "2001-01-01 00:00:00", 
+                                      date_final        = "2024-12-31 23:00:00",
                                       time_resolution   = 60,
                                       min_ev_duration   = 30,
                                       separation_in_min = 1440,
