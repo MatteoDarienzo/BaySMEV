@@ -65,7 +65,7 @@ For any question or feedback please contact us at:
 
 # Example:
 
-Simplified function for SMEV analysis with most of settings with values by default. Import function from "/module_smev_main.R".
+Basic function for SMEV analysis with most of settings with values by default (from "/module_smev_main.R").
 
          s_base <- smev_analysis_main(rain.df           = rain.df,
                                       name_project      = 'DEMO',
@@ -105,10 +105,10 @@ where:
 
 - thr_leftcens --> [real] threshold percentile for the left censoring approach (e.g., 0.9 to censor 90% of data).  
 
-- priors --> [list of array] list of priors for smev the parameters (shape and scale) one list for each defined duration. 
-         ex:
+- priors --> [list of list] list of priors for smev the parameters (shape and scale) one list for each defined duration. 
+         Ex:
        
-         #1h
+         #1h:
          priors[[1]]=list()
          priors[[1]]$shape_intercept =list("lognormal",log(0.7),0.4,0.7)
          priors[[1]]$shape_slope     =list("normal", 0,0.05,0)
@@ -118,3 +118,79 @@ where:
 - start_values --> [array] array of starting values for MCMC algorithm for posterior sampling. one value for each SMEV parameter: shape int, shape slope, scale int, scale slope = c(0.7, 0, 5, 0),
 
 - flag_smev_stat, flag_smev_ns, flag_smev_partns --> [logical] flags (T or F) fot computing different types of SMEV model: stationary, non-stationary, partial non-stationary modelds.
+
+
+
+Otherwise, the same function but with all settings is:
+
+         s_all <- smev_analysis_main(rain.df           = rain.df,
+                                     name_project      = 'DEMO',
+                                     dir_results       = '',
+                                     date_initial      = "2001-01-01 00:00:00", 
+                                     date_final        = "2024-12-31 23:00:00",
+                                     min_rain          = 0.1,
+                                     time_resolution   = 60,
+                                     min_ev_duration   = 30,
+                                     separation_in_min = 1440,
+                                     duration          = c(1,3,6,24)*60,
+                                     target_T          = sort(c(exp(seq(log(1.1),log(50),.1)),2,5,10,20,50,100)),
+                                     thr_leftcens      = 0.9,                   
+                                     estim_algorithm   = "cmdstan",
+                                     priors            = priors,                               
+                                     priors_gev        = priors_gev,                           
+                                     Nmcmc             = 4000,                        
+                                     Nmcmc_max         = 40000,                     
+                                     acc.rate          = 0.234,                       
+                                     Nslim             = 1,                           
+                                     nburn             = 0.5,                          
+                                     start_values      = c(0.7, 0, 5, 0),       
+                                     scales            = c(0.02, 0.002, 0.1, 0.005),  
+                                     scales_gev        = c(0.1 ,0.1, 0.1),
+                                     pix_row           = NULL, 
+                                     pix_col           = NULL,
+                                     sat_prod          = NULL,
+                                     flag_like         = F,                         
+                                     flag_saveALL      = T,                        
+                                     flag_gevstat      = T,
+                                     flag_smev_stat    = T,
+                                     flag_smev_ns      = T,
+                                     flag_smev_partns  = F,
+                                     flag_model_comparison = T,
+                                     flag_save2rds     = T)
+
+where the additional inputs are:
+
+- estim_algorithm --> [character] choice for the parameters estimation method is between: "cmdstan", "rstan" for Bayesian estimation with HMC mcmc alogrithm, "adaptMCMC" for Bayesian estimation with adaptive MCMC algorithm, and "fminsearch" for MLE with minimization algorithm.
+
+- priors_gev --> [list of array] list of priors for GEV the parameters (location, scale and shape). 
+         priors_gev=NULL # initialise
+         priors_gev$loc   =list("uniform",0,100,1)
+         priors_gev$scale =list("uniform",0,100,1)
+         priors_gev$shape = list("normal",0,0.3,0.1) # Shape ==> Martins et al.2000, Beta distrib (mean=0.1,stdev=0.122) and Renard et al.,2008, N(mean=0,sd=0.3) quite poor informative.
+
+- Nmcmc --> [integer] Number of MCMC interations.
+
+- Nmcmc_max --> [integer] ONLY for "adaptMCMC" estimation methods. Maximum number of MCMC iterations when not converging well.
+  
+- acc.rate --> [real] ONLY for "adaptMCMC" estimation methods. Acceptance rate for MCMC sampling algorithm. By default 0.234.
+
+- Nslim --> [integer] ONLY for "adaptMCMC" estimation methods.
+
+- nburn --> [real] ONLY for "adaptMCMC" estimation methods.
+
+- scales --> [real] ONLY for "adaptMCMC" estimation methods.
+
+- scales_gev --> [real] ONLY for "adaptMCMC" estimation methods.
+
+- pix_row --> [integer] ONLY if cycling over a gridded dataset to define pixel row index.
+  
+- pix_col -->  [integer] ONLY if cycling over a gridded dataset to define pixel column index.
+
+- flag_like --> [logical] T/F, T if you want to compare MaxPost vs. MLE when using Bayesian estimation method. 
+
+- flag_gevstat --> [logical] T/F, T if you want to infer also GEV parameters for comparison with SMEV.
+
+- flag_model_comparison --> [logical] T/F, T if you want to compare the different models SMEV, MEV, GEV.
+
+- flag_save2rds --> [logical] T/F, T if you want to save all results to a R data file format .rds
+
