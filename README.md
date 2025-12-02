@@ -110,10 +110,10 @@ where:
        
          #1h:
          priors[[1]]=list()
-         priors[[1]]$shape_intercept =list("lognormal",log(0.7),0.4,0.7)
-         priors[[1]]$shape_slope     =list("normal", 0,0.05,0)
-         priors[[1]]$scale_intercept =list("lognormal",1.45-0.7*log(1),0.5,exp(1.45-0.7*log(1)))
-         priors[[1]]$scale_slope     =list("normal",0,0.1039-0.0039*(1),0)
+         priors[[1]]$shape_intercept = list("lognormal",log(0.7),0.4,0.7)
+         priors[[1]]$shape_slope     = list("normal", 0,0.05,0)
+         priors[[1]]$scale_intercept = list("lognormal",1.45-0.7*log(1),0.5,exp(1.45-0.7*log(1)))
+         priors[[1]]$scale_slope     = list("normal",0,0.1039-0.0039*(1),0)
 
 - start_values --> [array] array of starting values for MCMC algorithm for posterior sampling. one value for each SMEV parameter: shape int, shape slope, scale int, scale slope = c(0.7, 0, 5, 0),
 
@@ -162,10 +162,11 @@ where the additional inputs are:
 
 - estim_algorithm --> [character] choice for the parameters estimation method is between: "cmdstan", "rstan" for Bayesian estimation with HMC mcmc alogrithm, "adaptMCMC" for Bayesian estimation with adaptive MCMC algorithm, and "fminsearch" for MLE with minimization algorithm.
 
-- priors_gev --> [list of array] list of priors for GEV the parameters (location, scale and shape). 
+- priors_gev --> [list of array] list of priors for GEV the parameters (location, scale and shape).
+
          priors_gev=NULL # initialise
-         priors_gev$loc   =list("uniform",0,100,1)
-         priors_gev$scale =list("uniform",0,100,1)
+         priors_gev$loc   = list("uniform",0,100,1)
+         priors_gev$scale = list("uniform",0,100,1)
          priors_gev$shape = list("normal",0,0.3,0.1) # Shape ==> Martins et al.2000, Beta distrib (mean=0.1,stdev=0.122) and Renard et al.,2008, N(mean=0,sd=0.3) quite poor informative.
 
 - Nmcmc --> [integer] Number of MCMC interations.
