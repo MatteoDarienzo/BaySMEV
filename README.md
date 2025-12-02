@@ -63,7 +63,7 @@ For any question or feedback please contact us at:
 
 
 
-# Example (MAIN FUNCTION):
+# Example (main function):
 
 Main function for SMEV analysis with most of settings with values by default (from "/module_smev_main.R").
 
@@ -122,7 +122,7 @@ where:
 
 
 
-# Example (WITH FULL SETTINGS):
+# Example (main with full settings):
 Otherwise, the same function but with all settings is:
 
          s_all <- smev_analysis_main(rain.df           = rain.df,
