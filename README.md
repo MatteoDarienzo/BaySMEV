@@ -52,7 +52,7 @@ BaySMEV makes use of the following R packages: "rstudioapi",
 
 # Disclaimer:
 
-Please, notice that BaySMEV is an experimental software. Further testing and investigation are required for validating the proposed analysis. 
+Please, notice that BaySMEV is an experimental software. Further testing and investigation are required for validating the proposed analysis and codes.
 We are not responsible for any loss (of data, profits, business, customers, orders, other costs or disturbances) derived by their use in the research or operational practice. 
 The authorized user accepts the risks associated with using the software given its nature of free software. 
 It is reserved to expert Users (developers or professionals) having prior knowledge in computer science, hydrology and statistics.
@@ -63,9 +63,9 @@ For any question or feedback please contact us at:
 
 
 
-# Example:
+# Example (MAIN FUNCTION):
 
-Basic function for SMEV analysis with most of settings with values by default (from "/module_smev_main.R").
+Main function for SMEV analysis with most of settings with values by default (from "/module_smev_main.R").
 
          s_base <- smev_analysis_main(rain.df           = rain.df,
                                       name_project      = 'DEMO',
@@ -121,6 +121,8 @@ where:
 
 
 
+
+# Example (WITH FULL SETTINGS):
 Otherwise, the same function but with all settings is:
 
          s_all <- smev_analysis_main(rain.df           = rain.df,
