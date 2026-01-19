@@ -1,0 +1,735 @@
+#^******************************************************************************
+#^*                               READ ME: 
+#^******************************************************************************
+#^* STAN package for Bayesian inference (HMC algorithm) requires prior 
+#^* installation "install_cmdstan(cores=2)" and creation of a local directory 
+#^* where the STAN models will be saved and compiled:
+#^*    install.packages("cmdstanr",repos=c('https://stan-dev.r-universe.dev',
+#^*                      getOption("repos")))
+#^*    check_cmdstan_toolchain(fix=T,quiet=T)
+#^*    install_cmdstan(cores=2)
+#^*    cmdstan_path()
+#^*    cmdstan_version()
+#^******************************************************************************
+# needed packages:
+library(adaptMCMC) # adaptive MCMC metropolis algorithm
+library(mcmc) # metropolis algorithm
+library(evd) # with the GEV pdf, cdf, ...
+library(ggplot2) # for plots
+library(bayesplot) # for mcmc diagnostic plots
+library(rstan) # STAN
+library(cmdstanr) # CMD STAN 
+library(posterior) # posterior mcmc diagnostics
+library(bayesplot) # posterior mcmc diagnostics
+library(loo) # posterior mcmc diagnostics
+library(PEIP)
+library(coda)
+
+
+
+
+
+################################################################################  
+smev_ns= function(algorithm="fminsearch",  #"fminsearch","rstan","cmdstan","adaptMCMC"
+                  Nmcmc=4000,
+                  Nmcmc_max=40000,
+                  nburn=0.5,
+                  Nslim=1, 
+                  scales=c(0.02,0.002,0.1,0.005),
+                  priors_id=list(),
+                  acc.rate=0.234,
+                  y=c(), 
+                  t=c(), 
+                  thr=NA,
+                  dir.res_id="", 
+                  dur=1,
+                  flag_save=T,
+                  flag_like=T,
+                  flag_bayes=T,
+                  ...){
+################################################################################
+  #^* GOAL: estimation of SMEV parameters FULL NONSTATIONARY MODEL             #
+  #^*       both scale and shape depend linearly on t.                         #
+  #^***************************************************************************#
+  #^* PROGRAMMER: Matteo Darienzo, University of Padua, Italy                  #
+  #^***************************************************************************#
+  #^* CREATED/MODIFIED: 2025/11/28                                             #
+  #^***************************************************************************#
+  #^*                               INPUTS                                     #
+  #^***************************************************************************#
+  #^*   1. [character] algorithm --> algorithms for the parameters estimation: #
+  #^*                               "cmdstan", "fminsearch","rstan",adaptMCMC" #
+  #^*   2. [integer] Nmcmc --> tot number of MCMC simulations, e.g., 4000      # 
+  #^*   3. [integer] Nmcmc_max --> (only if "adaptMCMC" algorithm is selected) #
+  #^*                               max total number of MCMC sim, e.g., 30000  # 
+  #^*   4 . [real] nburn --> burn first fraction of the MCMC iterations to     #
+  #^*                        reduce impact of start value on mcmc convergence. #    
+  #^*   5. [integer] Nslim --> (only if "adaptMCMC" algorithm is selected)     #
+  #^*                           slim mcmc for posterior statistics (to reduce  #
+  #^*                           lag-autocorrelation)                           # 
+  #^*   6. [array of reals] scales -->(only if "adaptMCMC" algorithm is chosen #
+  #^*                                    scaling setting of mcmc jumps to      #
+  #^*                                    explore SMEV parameters distribution: #
+  #^*                                    =c(0.02, 0.002, 0.1, 0.005)           #
+  #^*   7. [list of lists] priors_id --> list of priors for SMEV parameters,   #
+  #^*                                  independently if stat or nonstat model  # 
+  #^*                                  (shape intercept, shape slope,          #
+  #^*                                   scale intercpet, scale slope).         #
+  #^*                                  one list for each selected duration, and#
+  #^*                                  one list for each parameter, including  #
+  #^*                                  distrib.name,mean,stdev,init value, ex: #
+  #^*                                  priors_id=list(); priors_id[[1]]=list() #
+  #^*                                  priors_id[[1]]$shape_intercept=list(    #
+  #^*                                    "lognormal",log(0.7),0.4,0.7)         #
+  #^*                                  priors_id[[1]]$shape_slope=list(        #
+  #^*                                     "normal",0,0.05,0)                   #
+  #^*                                  priors_id[[1]]$scale_intercept=list(...)#    
+  #^*                                  priors_id[[1]]$scale_slope=list(...)    #  
+  #^*   8.  [real] acc.rate --> (only if "adaptMCMC" algorithm is selected)    #
+  #^*                           targeted acceptance rate for mcmc iter. (0.234)#
+  #^*   9.  [array of reals] y --> array or ordinary events values             #
+  #^*   10. [array of integers] t --> array of ordinary events years (from 0)  #
+  #^*   11. [real] thr --> threshold percentile for left censoring (0.9)       #
+  #^*   12. [character] dir.res_id --> path of folder with results             #
+  #^*   13. [array of integers] dur --> durations (in minutes) of event window #
+  #^*                                        =c(1,3,6,24)*60                   #
+  #^*   14. [logical] flag_save --> flag for saving results                    #
+  #^*   15. [logical] flag_like --> flag to activate maximum likelihood method #
+  #^*   16. [logical] flag_bayes --> flag to activate Bayesain maxpost method  #
+  #^*   17. [extra] ...                                                        #
+  #^***************************************************************************#
+  #^*                               OUTPUTS                                    #
+  #^***************************************************************************#
+  #^*   1. [list] s_tmp -->list object containing results of estimation:       #
+  #^*                     "theta_maxlik_fmins" (set of param maximizing Lik    #
+  #^*                     "maxlik_fmins" (Maximum Likelihood from fminsearch)  #
+  #^*                                                                          #
+  #^*                     "acc.rate" (input targeted acceptance rate)          #
+  #^*                                                                          #
+  #^*                     "mcmc_Lik" (mcmc likelihood sample)                  #
+  #^*                     "zLik" (sampled mcmc likelihood parameters)          #
+  #^*                     "zLik_acceptance"(Likelihood MCMC acceptance rate)   #
+  #^*                     "theta_maxlik_mcmc" (set of param maximizing Lik mcmc#
+  #^*                     "maxlik_mcmc" (Maximum Likelihood from MCMC)         # 
+  #^*                     "a_w_quant_Like" (shape inter 5,50,95% qnt from like)#
+  #^*                     "b_w_quant_Like" (shape slope 5,50,95% qnt from like)#
+  #^*                     "a_C_quant_Like" (scale inter 5,50,95% qnt from like)#
+  #^*                     "b_C_quant_Like" (sclae slope 5,50,95% qnt from like)#
+  #^*                                                                          #
+  #^*                     "mcmc_Post" (parameters posterior sample)            #
+  #^*                     "zPost" (sampled posterior parameters)               #
+  #^*                     "zPost_p" (sampled log-posterior)                    #
+  #^*                     "zPost_acceptance"(posterior MCMC acceptance rate)   #
+  #^*                     "init_values_post (initial values of MCMC chains)    #
+  #^*                     "converg_Post" (convergence of posterior mcmc)       #
+  #^*                     "a_w_quant_Post" (shape inter 5,50,95% qnt from post)#
+  #^*                     "b_w_quant_Post" (shape slope 5,50,95% qnt from post)#
+  #^*                     "a_C_quant_Post" (scale inter 5,50,95% qnt from post)#
+  #^*                     "b_C_quant_Post" (scale slope 5,50,95% qnt from post)#
+  #^*                                                                          #
+  #^*                     "DIC1", "DIC1_b" (two versions of DIC from           # 
+  #^*                     "DIC2", "DIC2_b" (two versions of DIC from           #
+  #^*                     "DIC3" (DIC crit. from                               #
+  #^*                     "AIC", "AIC_b" (two versions of AIC, Aikake,1974)    # 
+  #^*                     "BIC", "BIC_b" (two versions of BIC, Schwarz,1978)   #
+  #^*                     "HQC", "HQC_b" (Hannan-Quinn 1979)                   #
+  #^***************************************************************************#
+  #^*                          ACKNOWLEDGEMENTS:                               #
+  #^***************************************************************************#
+  #^* For the extreme analysis it uses methods: MEV (Marani and Ignaccolo,2015)#
+  #^* and its simplified version SMEV (Marra et al., 2019. 2020).              #
+  #^* It uses open source codes of Francesco Marra (University of Padua) for   #
+  #^* storm separation, identification of ordinary events, SMEV method and     #
+  #^* left-censoring approach, and non-stationary model freely available at:   #
+  #^* https://zenodo.org/records/11934843 (SMEV methodology)                   #
+  #^* https://zenodo.org/records/15047817 (non-stationary SMEV)                #
+  #^*                                                                          #
+  #^* For the Bayesian and MCMC algorithms it uses some ideas from:            #
+  #^* - RsTooDS of Benjamin Renard (INRAE): https://zenodo.org/records/5075760 #
+  #^* - BaM of Benjamin Renard (INRAE): https://github.com/BaM-tools/RBaM      #
+  #^* - BayDERS of Matteo Darienzo(INRAE):                                     #
+  #^*   https://github.com/MatteoDarienzo/BayDERS                              #
+  #^* - packages "rstan" and "cmdstanr" for stan Bayesian inference + MCMC alg.#
+  #^* - package "adaptMCMC" for adaptive metropolis algorithm from R package of#
+  #^*   A. Scheidegger (doi:10.1007/s11222-011-9269-5)                         #
+  #^***************************************************************************#
+  #^*                               READ ME:                                   #
+  #^***************************************************************************#
+  #^* STAN package for Bayesian inference (HMC algorithm) requires prior       #
+  #^* installation "install_cmdstan(cores=2)" and creation of a local directory#
+  #^* where the STAN models will be saved and compiled.                        #
+  #^* install.packages("cmdstanr",repos=c('https://stan-dev.r-universe.dev',   #
+  #^*                   getOption("repos")))                                   #
+  #^* check_cmdstan_toolchain(fix=T,quiet=T)                                   #
+  #^* install_cmdstan(cores=2)                                                 #
+  #^* cmdstan_path()                                                           #
+  #^* cmdstan_version()                                                        #
+  #^***************************************************************************#
+  #^*                               TO DO                                      #
+  #^***************************************************************************#
+  #^* marginal likelihood for Bayes Factor                                     #
+  #^* PSIS-LOO leave-one-out cross-validation                                  #
+  #^* WAIC criterion                                                           #
+  #^***************************************************************************#
+  #^*                              DISCLAIMER:                                 #
+  #^***************************************************************************#
+  #^* Please, notice that is an experimental code. Further analysis is required#
+  #^* for validating the proposed tools and scripts. We are not responsible for#
+  #^* any loss (e.g.,of data, profits, business, customers, orders, other costs#
+  #^* or disturbances) derived by their use in the operational practice.       #
+  #^* The authorized user accepts the risks associated with using the software #
+  #^* given its nature of free software. It is reserved to expert Users        #
+  #^* (developers or professionals) having knowledge in computer science,      #
+  #^* hydrology, extreme analysis and statistics.                              #
+  ##############################################################################
+  rm(s_tmp)
+  s_tmp=NULL
+  dir.create(dir.res_id,recursive=T)
+  
+  
+  #^* Selected algorithm for parameters estimation:
+  #^* choice between "cmdstan" and "rstan" for Bayesian estimation with STAN
+  #^* package and Hamiltonian MCMC algorithm.
+  #^* "cmdstan" is preferred, since computationally more efficient.
+  #^* "fminsearch" for MLE method with a minimization optimization function.
+  #^* "adaptMCMC" for Bayesian estimation with adaptive metropolis algorithm.
+  
+  
+  #^****************************************************************************
+  if (algorithm=="fminsearch"){
+  #^****************************************************************************
+    print("Max Likelihood with minimisation function")
+    # Use fminsearch function (as in matlab SMEV version of Marra 2019) to 
+    # compute maximum likelihood method with minimisation optimization function:
+    fmins=NULL
+    fmins=pracma::fminsearch(f=logLike1,
+                             x0= c(priors_id$shape_intercept[[4]], 
+                                   priors_id$shape_slope[[4]],
+                                   priors_id$scale_intercept[[4]], 
+                                   priors_id$scale_slope[[4]]), 
+                             y=y,t=t,thr=thr,maxiter=1000) # HARDCODED maxiter!!
+    s_tmp$theta_maxlik_fmins=fmins$xmin
+    s_tmp$maxlik_fmins=fmins$fmin
+    
+    
+    
+    
+    
+  #^****************************************************************************
+  } else if (algorithm =="cmdstan"){
+  #^****************************************************************************
+    if (flag_like){
+      # perform also maximum LIKELIHOOD to be compared with posterior sample:
+      print("Max Likelihood")
+      converg=F
+      # NOT DONE YET!!!
+      #
+    }
+    
+    
+    print("Max Likelihood with minimisation function")
+    # Use fminsearch function (as in matlab SMEV version) to compute maximum 
+    # likelihood method with minimisation function, for comparison with Bayesian 
+    # if algorithm is not "fminsearch":
+    fmins=NULL
+    initval=c(priors_id$shape_intercept[[4]], 
+              priors_id$shape_slope[[4]],
+              priors_id$scale_intercept[[4]], 
+              priors_id$scale_slope[[4]])
+    fmins=pracma::fminsearch(f=logLike1,
+                             x0=initval, 
+                             y=y,
+                             t=t, 
+                             thr=thr,  
+                             maxiter=1000)
+    s_tmp$theta_maxlik_fmins=fmins$xmin
+    s_tmp$maxlik_fmins=fmins$fmin
+
+    # MCMC metropolis algorithm (maximum posterior method, BAYES THEOREM):
+    print("Max Posterior")
+    zPost_ALL=zPost_p_ALL=c()
+    print("Apply cmdstanr package, running hamiltonian mcmc...")
+    smodel = paste0("data {
+        int<lower=0> N_uncen;
+        vector[N_uncen] y_uncen; 
+        vector[N_uncen] t_uncen;
+        int<lower=0> N_cen;
+        vector[N_cen] t_cen;
+        real<upper=min(y_uncen)> thr;
+      }
+      parameters {
+        real<lower=0> alpha_0;
+        real<lower=0> sigma_0;
+        real<lower=-1, upper=1> alpha_1;
+        real<lower=-1, upper=1> sigma_1;
+      }
+      model {
+        // priors on component parameters
+        alpha_0 ~ ",priors_id$shape_intercept[[1]],"(",priors_id$shape_intercept[[2]],",",priors_id$shape_intercept[[3]],");  
+        sigma_0 ~ ",priors_id$scale_intercept[[1]],"(",priors_id$scale_intercept[[2]],",",priors_id$scale_intercept[[3]],");  
+        alpha_1 ~ ",priors_id$shape_slope[[1]],    "(",priors_id$shape_slope[[2]],    ",",priors_id$shape_slope[[3]],    ");  
+        sigma_1 ~ ",priors_id$scale_slope[[1]],    "(",priors_id$scale_slope[[2]],    ",",priors_id$scale_slope[[3]],    ");
+        target += weibull_lpdf(y_uncen | alpha_0+alpha_1*t_uncen,   sigma_0+sigma_1*t_uncen);
+        target += weibull_lcdf(thr |  alpha_0+alpha_1*t_cen,   sigma_0+sigma_1*t_cen);
+      }")
+    
+    file<-file.path(cmdstan_path(),"examples","smev")
+    f<-write_stan_file(smodel,
+                       dir=file, 
+                       basename=paste0("ns_smev2_dur",durations[dur]/60,"h.stan"))
+    mod=0
+    mod<-cmdstan_model(f)
+    # mod$compile(force_recompile = T)
+    # mod$print()
+    # mod$exe_file()
+    
+    # Define object with input data for STAN:
+    ord_data <- list(
+      N_cen=length(y[y<thr]),
+      t_cen=t[y<thr],
+      N_uncen=length(y[y>=thr]),
+      y_uncen=y[y>=thr],
+      t_uncen=t[y>=thr],
+      thr=thr
+    )
+    # Define random starting values for each chain:
+    init_f<-function () list(alpha_0=rlnorm(1,priors_id$shape_intercept[[2]],0.1), 
+                             alpha_1=rnorm(1,priors_id$shape_slope[[2]],0.001), 
+                             sigma_0=rlnorm(1,priors_id$scale_intercept[[2]],0.1), 
+                             sigma_1=rnorm(1,priors_id$scale_slope[[2]],0.001))
+    # # or use fixed starting values for each chain:
+    # init_f<-list(list(alpha_0=0.7,alpha_1=0,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0.01),
+    #              list(alpha_0=0.8,alpha_1=-0.001,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0),
+    #              list(alpha_0=0.6,alpha_1=0.001,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0.001),
+    #              list(alpha_0=0.7,alpha_1=0.001,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0))
+    Nmcmc_tmp=Nmcmc
+    fit=0; nchain=0
+    while (nchain<4){
+      print(paste0("generate ", 
+                   Nmcmc_tmp/4," simulations per chain (4 chains) + other", 
+                   Nmcmc_tmp/4," as warmup; no thinning; final tot=",Nmcmc_tmp))
+      fit<-mod$sample(
+        data=ord_data,
+        seed=123,
+        chains=4,
+        parallel_chains=4, # getOption("mc.cores",8),
+        iter_warmup=500, # Nmcmc_tmp/4,
+        iter_sampling=Nmcmc_tmp/4,
+        show_messages=F,
+        show_exceptions=F,
+        init=init_f,
+        save_warmup=F,
+        refresh=0   # print update every 500 iterations.
+      )
+      #fit$summary(variables=c("alpha_0","alpha_1","sigma_0","sigma_1"),"mean","sd")
+      #fit$diagnostic_summary()
+      draws<-fit$draws()
+      list_of_draws=as_draws_df(draws)
+      nchain=length(unique(list_of_draws$.chain))
+      if (nchain<4){
+        message("one or more chain did not converge !")
+      }
+    }
+    s_tmp$init_values_post=fit$init()
+    
+    # save stan fit object:
+    # s_tmp$fit = fit
+    
+    # posterior traceplots for each parameter:
+    color_scheme_set("mix-blue-red")
+    gg_traceplots=bayesplot::mcmc_trace(
+      draws, 
+      pars=c("alpha_0","alpha_1","sigma_0","sigma_1"),
+      n_warmup=0,
+      facet_args=list(nrow=4,labeller=label_parsed,ncol=1,strip.position="left"))+
+      facet_text(size=15)+theme_bw(base_size=12)+
+      theme(panel.grid.major=element_blank(), 
+            panel.grid.minor=element_blank())
+    ggsave(gg_traceplots,filename=paste0(dir.res_id,"/trace_chains_mcmc_post_1.png"),
+           width=10,height=6,dpi=80)
+    
+    # Posterior intervals parameters:
+    gg_areas=mcmc_areas(draws,
+                        point_est=c("mean"),
+                        border_size=0.5,
+                        area_method="equal height", # c("equal area","equal height","scaled height")
+                        pars=c("alpha_0","alpha_1","sigma_0","sigma_1"),
+                        prob=0.95)+theme_bw(base_size=20)
+    ggsave(gg_areas,filename=paste0(dir.res_id,"/areas_param_mcmc_post_1.png"),
+           width=6,height=6,dpi=80)
+    
+    # pdf param:
+    gg_pdf=mcmc_dens_overlay(draws,pars=c("alpha_0","alpha_1","sigma_0","sigma_1"))+
+      facet_text(size=15)+theme_bw(base_size=20)
+    ggsave(gg_pdf,filename=paste0(dir.res_id,"/pdf_param_mcmc_chains_post_1.png"),
+           width=10,height=6,dpi=80)
+    
+    # Organise posterior sample:
+    zPost=cbind(list_of_draws$alpha_0, 
+                list_of_draws$alpha_1,
+                list_of_draws$sigma_0, 
+                list_of_draws$sigma_1)
+    # get log-posterior:
+    zPost_p=list_of_draws$lp__
+    # thinning:
+    zPost=apply(zPost,2,function(x) x[seq(1,length(x),1)]) 
+    zPost_p=zPost_p[seq(1,length(zPost_p),1)]
+    s_tmp$zPost=zPost
+    s_tmp$zPost_p=zPost_p
+    # MCMC convergence diagnostics:
+    converg = mcmc.diagn(zPost       = zPost,
+                         priors_id   = priors_id,
+                         dir_res     = dir.res_id,
+                         name_output = paste0('post_1'),
+                         save        = T)
+    s_tmp$converg_Post=converg
+    # compute posterior likelihood to compute model selection criteria:
+    marg.like=c()
+    for (tt in 1:nrow(zPost)){
+      marg.like[tt]=logLike(theta=zPost[tt,],y=y,t=t,thr=thr)
+    }
+    # compute maxpost (MAP):
+    s_tmp$theta_maxpost=zPost[which.max(zPost_p),]
+    s_tmp$maxpost=max(zPost_p)
+    
+    
+    # Credibility intervals (at 90%) of posterior sample:
+    # shape intercept
+    s_tmp$a_w_quant_Post=quantile(zPost[,1],probs=c(0.05,0.5,0.95))
+    # shape slope
+    s_tmp$b_w_quant_Post=quantile(zPost[,2],probs=c(0.05,0.5,0.95))
+    # scale intercept
+    s_tmp$a_C_quant_Post=quantile(zPost[,3],probs=c(0.05,0.5,0.95))
+    # scale slope
+    s_tmp$b_C_quant_Post=quantile(zPost[,4],probs=c(0.05,0.5,0.95))
+    
+    
+    # Criteria for expected predictive accuracy (model selection)
+    # DIC: Gelman et al, 2004 "Bayesian data analysis"
+    all_dic=calc.dic(zPost  = zPost,
+                     lik    = marg.like,
+                     post   = zPost_p,
+                     lik.fun= logLike,
+                     t      = t,
+                     y      = y,
+                     thr    = thr) 
+    s_tmp$DIC1=all_dic$DIC1
+    s_tmp$DIC1_b=all_dic$DIC1_b
+    s_tmp$DIC2=all_dic$DIC2
+    s_tmp$DIC2_b=all_dic$DIC2_b
+    s_tmp$DIC3=all_dic$DIC3
+    
+    # AIC (Aikake, 1974):
+    all_aic=calc.aic(zPost=zPost,lik=marg.like,post=zPost_p)  
+    s_tmp$AIC=all_aic$AIC
+    s_tmp$AIC_b=all_aic$AIC_b
+    
+    # BIC (Schwarz, 1978):
+    all_bic=calc.bic(zPost=zPost,lik=marg.like,post=zPost_p,y=y)
+    s_tmp$BIC=all_bic$BIC
+    s_tmp$BIC_b= all_bic$BIC_b
+    
+    # HQC (Hannan-Quinn, 1979):
+    all_hqc=calc.hqc(zPost=zPost,lik=marg.like,post=zPost_p,y=y)
+    s_tmp$HQC=all_hqc$HQC
+    s_tmp$HQC_b=all_hqc$HQC_b
+    
+    # marginal likelihood for Bayes Factor:
+    # .... to be implemented yet !!!
+    
+
+
+    
+    
+    
+  #^****************************************************************************
+  } else if (algorithm == "adaptMCMC"){
+  #^****************************************************************************
+    # ADAPTIVE MCMC METROPOLIS
+    if (flag_like){
+      # maximum LIKELIHOOD method:
+      print("Max Likelihood")
+      converg=F
+      Nmcmc_tmp=Nmcmc/nburn*5 #accounting for thinning each 5 mcmc.
+      zLik_ALL=zLik_p_ALL=c()
+      it=0
+      while ((converg==F)&(Nmcmc_tmp<Nmcmc_max)){
+        it=it+1
+        set.seed(1)
+        initval=c(priors_id$shape_intercept[[4]],priors_id$shape_slope[[4]],
+                  priors_id$scale_intercept[[4]],priors_id$scale_slope[[4]])
+        # Use metrop function of mcmc package for metropolis algorithm:
+        # mcmc_Lik=mcmc::metrop(obj     = logLike, 
+        #                       initial = initval, 
+        #                       scale   = scales, 
+        #                       nbatch  = Nmcmc_tmp,
+        #                       y       = y, 
+        #                       t       = t, 
+        #                       thr     = thr)
+        
+        # Use adaptMCMC package for adaptive metropolis algorithm with 
+        # coerced acceptance rate. Vihola, M.(2012) doi:10.1007/s11222-011-9269-5.
+        mcmc_Lik= adaptMCMC::MCMC(p               = logLike,  # likelihood function
+                                  n               = Nmcmc_tmp,# number of samples
+                                  init            = initval,  # vector of init values
+                                  scale           = scales,   # vector of variances of jump distr.
+                                  adapt           = T,        # if T adaptive sampling is used
+                                  showProgressBar = F,
+                                  acc.rate        = acc.rate, # desired accept.rate
+                                  y               = y,        # ordinary event values
+                                  t               = t,        # ordinary event years
+                                  thr             = thr)      # left-censoring threshold
+        zLik_ALL=rbind(zLik_ALL,mcmc_Lik$samples)
+        zLik_p_ALL=rbind(zLik_p_ALL,mcmc_Lik$log.p)
+        # Burning first part of sample:
+        zLik=zLik_ALL[(nburn*nrow(zLik_ALL)+1):nrow(zLik_ALL),]
+        zLik_p=zLik_p_ALL[(nburn*length(zLik_p_ALL)+1):length(zLik_p_ALL)]
+        # thinning:
+        zLik=apply(zLik,2,function(x) x[seq(1,length(x),Nslim)])
+        zLik_p=zLik_p[seq(1,length(zLik_p),Nslim)]
+        # print(paste0("---- accept.rate = ",floor(mcmc_Lik$accept*100)," %"))
+        # MCMC convergence diagnostics:
+        converg=mcmc.diagn(zPost       =zLik, 
+                           priors_id   =NULL, 
+                           dir_res     =dir.res_id,  
+                           name_output =paste0('lik_',it), 
+                           save        =T)  
+        s_tmp$converg_Lik=converg
+        converg=T
+        if (converg==F){
+          print(paste0("--------------- bad converg.: increasing mcmc"))
+          Nmcmc_tmp=30000
+        }
+      }
+      # add mcmc results to s_tmp object:
+      s_tmp$mcmc_Lik=mcmc_Lik
+      s_tmp$zLik=zLik
+      s_tmp$zLik_acceptance=floor(mcmc_Lik$accept*100)
+      
+      # Compute likelihood to find maximum likelihood:
+      # like=c()
+      # for (tt in 1:nrow(zLik)){
+      #   like[tt] = logLike(theta =zLik[tt,],  y=y, t=t, thr=thr)
+      # }
+      s_tmp$theta_maxlik_mcmc=zLik[which.max(zLik_p),]
+      s_tmp$maxlik_mcmc=max(zLik_p)
+      
+      # Credibility intervals (at 90%):
+      # shape intercept
+      s_tmp$a_w_quant_Like=quantile(zLik[,1],probs=c(0.05,0.5,0.95))
+      # shape slope
+      s_tmp$b_w_quant_Like=quantile(zLik[,2],probs=c(0.05,0.5,0.95))
+      # scale intercept
+      s_tmp$a_C_quant_Like=quantile(zLik[,3],probs=c(0.05,0.5,0.95))
+      # scale slope
+      s_tmp$b_C_quant_Like=quantile(zLik[,4],probs=c(0.05,0.5,0.95))
+    }
+    
+    print("Max Likelihood with minimisation function")
+    # Use fminsearch function (as used in matlab smev version) to compute maximum 
+    # likelihood method with minimisation function, for comparison with Bayesian 
+    # if algorithm is not "fminsearch":
+    initval=c(priors_id$shape_intercept[[4]],priors_id$shape_slope[[4]],
+              priors_id$scale_intercept[[4]],priors_id$scale_slope[[4]])
+    fmins=NULL
+    fmins=pracma::fminsearch(f=logLike1,
+                             x0=initval, 
+                             y=y,t=t,thr=thr,maxiter=1000)
+    s_tmp$theta_maxlik_fmins=fmins$xmin
+    s_tmp$maxlik_fmins=fmins$fmin
+    
+    # MCMC metropolis algorithm (maximum posterior method, BAYES THEOREM):
+    print("Max Posterior")
+    zPost_ALL=zPost_p_ALL=c()
+    print("Apply adaptMCMC package, running adaptive Metropolis mcmc...")
+    it=0
+    converg=F
+    Nmcmc_tmp=Nmcmc/nburn*5 #accounting for thinning each 5 mcmc
+    while ((converg ==F)&(Nmcmc_tmp<Nmcmc_max)){
+      it=it+1
+      set.seed(1)
+      initval=c(priors_id$shape_intercept[[4]],priors_id$shape_slope[[4]],
+                priors_id$scale_intercept[[4]],priors_id$scale_slope[[4]])
+      
+      # Use metrop function of mcmc package for metropolis algorithm:
+      # mcmc_Post=metrop(obj     = logPost,
+      #                  initial = initval,
+      #                  scale   = scales,
+      #                  nbatch  = Nmcmc_tmp,
+      #                  priors  = priors_id,
+      #                  y       = y,
+      #                  t       = t,
+      #                  thr     = thr)
+
+      # Use adaptMCMC package for adaptive metropolis algorithm with 
+      # coerced acceptance rate. Vihola, M.(2012) doi:10.1007/s11222-011-9269-5.
+      mcmc_Post=adaptMCMC::MCMC(p               = logPost,  # posterior function
+                                n               = Nmcmc_tmp,# number of samples
+                                init            = initval,  # vector of init values
+                                scale           = scales,   # vector of variances of jump distr.
+                                adapt           = T,        # if T adaptive sampling is used
+                                showProgressBar = F,
+                                acc.rate        = acc.rate, # desired accept.rate
+                                priors          = priors_id,# priors
+                                y               = y,        # ordinary event values
+                                t               = t,        # ordinary event years
+                                thr             = thr)      # left-censoring threshold
+      # zPost_ALL=rbind(zPost_ALL, mcmc_Post$batch)
+      zPost_ALL=rbind(zPost_ALL, mcmc_Post$samples)
+      zPost_p_ALL=rbind(zPost_p_ALL, mcmc_Post$log.p)
+      zPost= zPost_ALL[(nburn*nrow(zPost_ALL)+1):nrow(zPost_ALL),]
+      zPost_p= zPost_p_ALL[(nburn*length(zPost_p_ALL)+1):length(zPost_p_ALL)]
+      zPost= apply(zPost, 2, function(x) x[seq(1, length(x), Nslim)])
+      zPost_p= zPost_p[seq(1, length(zPost_p), Nslim)]
+      # print(paste0("-------------- accept.rate = ", floor(mcmc_Post$accept*100), " %"))
+      converg = mcmc.diagn(zPost       = zPost,
+                           priors_id   = priors_id,
+                           dir_res     = dir.res_id,
+                           name_output = paste0('post_', it),
+                           save        = T)
+      s_tmp$converg_Post= converg
+      converg=T
+      if (converg==F){
+        print(paste0("--------------- bad converg.: increasing mcmc"))
+        Nmcmc_tmp=30000
+      }
+    }
+    s_tmp$acc.rate=acc.rate
+    s_tmp$mcmc_Post=mcmc_Post
+    s_tmp$zPost=zPost
+    s_tmp$zPost_acceptance=floor(mcmc_Post$accept*100)
+    
+    
+    
+    
+    
+  ################################
+  } else if (algorithm== "rstan"){
+  ################################
+      #fminsearch (MLE)
+      #################
+      print("Max Likelihood with minimisation function")
+      # Just for comparison, compute also fminsearch() as Marra et al., 2019:
+      fmins=NULL
+      initval=c(priors_id$shape_intercept[[4]],
+                priors_id$scale_intercept[[4]])
+      fmins=pracma::fminsearch(f=logLike1, 
+                               x0=initval,
+                               y=y, 
+                               t=t, 
+                               thr=thr, 
+                               maxiter=5000)
+      s_tmp$theta_maxlik_fmins=fmins$xmin
+      s_tmp$maxlik_fmins=fmins$fmin
+    
+    
+      print("Apply Rstan package, running hamiltonian mcmc...")
+      Nmcmc_tmp=Nmcmc 
+      rstan_options(auto_write=T)
+      
+      smodel = paste0("data {
+        int<lower=0> N_uncen;
+        vector[N_uncen] y_uncen; 
+        vector[N_uncen] t_uncen;
+        int<lower=0> N_cen;
+        vector[N_cen] t_cen;
+        real<upper=min(y_uncen)> thr;
+        int<lower=0> N;
+      }
+      parameters {
+        real<lower=0> alpha_0;
+        real<lower=0> sigma_0;
+        real<lower=-.1, upper=.1> alpha_1;
+        real<lower=-1, upper=1> sigma_1;
+      }
+      transformed parameters {
+        vector<lower=0>[N_uncen] alpha_uncen;
+        vector<lower=0>[N_uncen] sigma_uncen;
+        vector<lower=0>[N_cen] alpha_cen;
+        vector<lower=0>[N_cen] sigma_cen;
+        
+        alpha_uncen = alpha_0 + alpha_1*t_uncen;
+        alpha_cen = alpha_0 + alpha_1*t_cen; 
+        sigma_uncen = sigma_0 + sigma_1*t_uncen;
+        sigma_cen = sigma_0 + sigma_1*t_cen; 
+
+      }
+      model {
+        // priors on component parameters
+        alpha_0 ~ ",priors_id$shape_intercept[[1]],"(",priors_id$shape_intercept[[2]],",",priors_id$shape_intercept[[3]],");  
+        sigma_0 ~ ",priors_id$scale_intercept[[1]],"(",priors_id$scale_intercept[[2]],",",priors_id$scale_intercept[[3]],");  
+        alpha_1 ~ ",priors_id$shape_slope[[1]],    "(",priors_id$shape_slope[[2]],    ",",priors_id$shape_slope[[3]],    ");  
+        sigma_1 ~ ",priors_id$scale_slope[[1]],    "(",priors_id$scale_slope[[2]],    ",",priors_id$scale_slope[[3]],    ");  
+        target += weibull_lpdf(y_uncen | alpha_uncen, sigma_uncen);
+        target += weibull_lcdf(thr | alpha_cen, sigma_cen);
+      }")
+
+      
+      file<-file.path(cmdstan_path(),"examples","smev")
+      f<-write_stan_file(smodel,
+                         dir=file,
+                         basename=paste0("ns_smev2_dur",durations[dur]/60,"h.stan"))
+      mod=0
+      mod<-cmdstan_model(f)
+      # mod$compile(force_recompile = T)
+      # mod$print()
+      # mod$exe_file()
+      
+      # Define object with input data fro STAN:
+      ord_data<-list(
+        N_cen=length(y[y<thr]),
+        t_cen=t[y<thr],
+        N_uncen=length(y[y>=thr]),
+        y_uncen=y[y>=thr],
+        t_uncen=t[y>=thr],
+        thr=thr,
+        N=length(y)
+      )
+      
+      # Define random starting values for each chain:
+      init_f<-function () list(alpha_0=rlnorm(1,priors_id$shape_intercept[[2]],0.1), 
+                               alpha_1=rnorm(1,priors_id$shape_slope[[2]],0.001), 
+                               sigma_0=rlnorm(1,priors_id$scale_intercept[[2]],0.1), 
+                               sigma_1=rnorm(1,priors_id$scale_slope[[2]],0.001))
+      # or fixed values:
+      # init_f<-list(list(alpha_0=0.7,alpha_1=0, sigma_0=priors_id$scale_intercept[[2]],sigma_1=0.01),
+      #              list(alpha_0=0.8,alpha_1=-0.001,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0),
+      #              list(alpha_0=0.6,alpha_1=0.001,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0.001),
+      #              list(alpha_0=0.7,alpha_1=0.001,sigma_0=priors_id$scale_intercept[[2]],sigma_1=0))
+      
+      # STAN:
+      fit2=0
+      fit2<-rstan::stan(
+                        file=paste0(file, "/ns_smev2_dur",durations[dur]/60,"h.stan"), # Stan program
+                        data=ord_data,        # named list of data
+                        chains=4,             # num of Markov chains
+                        warmup=1000,          # num of warmup iterat per chain
+                        iter=2001,            # tot num of iterat per chain
+                        cores=12,             # number of cores (could use one per chain)
+                        refresh=0,            # no progress shown
+                        seed=1,               # seed value
+                        thin=1,               # thinning factor of mcmc
+                        init=init_f,          # initial values of parameters
+                        algorithm="NUTS")     # "Fixed_param", "NUTS", "HMC"
+  
+      rstan::traceplot(fit2,
+                       pars=c("alpha_0","alpha_1","sigma_0","sigma_1"),
+                       inc_warmup=T,nrow=2)
+      
+      # check_hmc_diagnostics(fit2)
+      # print(fit2,probs=c(.05,.5,.95)) # IC 90%
+      # plot(fit2)
+      # print(fit2,pars=c("alpha","sigma"))
+      # # all chains combined
+      # sampler_params<-get_sampler_params(fit2,inc_warmup=T)
+      # summary(do.call(rbind, sampler_params),digits=2)
+      # # # each chain separately
+      # lapply(sampler_params,summary,digits=2)
+
+      # scatterplots with correlations:
+      pairs(fit2,pars=c("alpha_0","alpha_1","sigma_0","sigma_1"),las=2)
+      list_of_draws<-rstan::extract(fit2)
+  }
+  return(s_tmp)
+}
+
