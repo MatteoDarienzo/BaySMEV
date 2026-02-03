@@ -144,7 +144,9 @@ Nmcmc=4000  # total number of MCMC simulations (initial number)
 start_values=c(0.7,0,5,0) # starting values for mcmc sampling.
 flag_like=F  # T/F perform or not the maximum likelihood method.
 flag_save=T  # compute all quantiles and comparison between models.
-dir_results=paste0(dir_code,'/Case_studies/',case_study,"/Results/",name_project,"/thr_",thr_leftcens) # results directory
+dir_input=paste0(dir_code,'/data_input/',name_project) # results input data
+dir_results=paste0('C:/Users/MATTEO/Documents/PRIN/Results/BaySMEV/',
+                   case_study,'/',name_project,'/thr_',thr_leftcens) # results directory
 
 # ONLY if estimation method "adaptMCMC" is chosen:
 acc.rate=0.234  # (for "adaptMCMC")MCMC acceptance rate
@@ -216,7 +218,9 @@ priors_gev<-list(loc=list("uniform",0,100,1), scale=list("uniform",0,100,1), sha
 # The temporal resolution of the series must then be specified in another setting:
 # "time_resolution".
 rm(rain.df,s)   # just to be safe, remove prevìous uploaded dataset
-rain.df=readRDS('~/PRIN/Scripts/smev_bayesian/Case_studies/Italy/Results/DEMO/example_rainfall_data.rds')
+rain.df=readRDS(paste0(dir_input,'/example_rainfall_data_2.rds'))
+
+
 
 
 

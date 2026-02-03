@@ -573,7 +573,7 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
                       summarise(total_count=n(),.groups='drop')
     s$ncount[[dur]]=s$agg_tbl[[dur]]$total_count
     s$years=unique(t)
-    s$years_unique=blocks # unique(year(s$time))        
+    s$years_unique=blocks  # unique(year(s$time))        
 
     
     
@@ -581,7 +581,7 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
     # MK trend and Linear regression of n:
     #^**************************************************************************
     trendn=trend_n(s_obj         = s, 
-                   alpha         = 0.05,   # significance level of the test
+                   alpha         = 0.05,  # Assign significance level of the test
                    dir.res_trend = dir.res_pix,
                    dur           = dur,
                    nfplot        = nfplot,
