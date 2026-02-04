@@ -1438,8 +1438,8 @@ model_comparison = function(s                = s,
                             pix_row          = NULL,
                             pix_col          = NULL,
                             dir.res_pix      ='',
-                            nfplot           ='.png',
-                            title_plot       = ''){
+                            nfplot           ='criteria.png',
+                            title_plot       ='criteria'){
 ################################################################################  
   #^* GOAL: models comparison (plot and save information criteria)
   #^****************************************************************************

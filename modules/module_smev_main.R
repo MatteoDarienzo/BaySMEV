@@ -253,18 +253,19 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
   s$row=pix_row
   s$col=pix_col
   
+  # initialize title and filename of plots to be saved.
+  if ((!is.null(s$row))|(!is.null(s$col))|(!is.null(s$sat_prod))){
+    nfplot=paste0("_",s$sat_prod,'_',s$row,'_',s$col,".png")
+    title_plot=paste0('(',s$sat_prod,', ',year(s$time[1]),'-',
+                      year(tail(s$time,1)),', pix:',s$row,'-',s$col,')')
+  } else {
+    nfplot=paste0("_", s$name_project,".png")
+    title_plot=paste0('(', s$name_project,', ', 
+                      year(s$time[1]),' - ',year(tail(s$time,1)),')')
+  }
   
   if (flag_saveALL){
     # plot precipitation timeseries:
-    if ((!is.null(s$row))|(!is.null(s$col))|(!is.null(s$sat_prod))){
-      nfplot= paste0("_",s$sat_prod,'_',s$row,'_',s$col,".png")
-      title_plot=paste0('(',s$sat_prod,', ',year(s$time[1]),'-',
-                        year(tail(s$time,1)),', pix:',s$row,'-',s$col,')')
-    } else {
-      nfplot= paste0("_", s$name_project,".png")
-      title_plot=paste0('(', s$name_project,', ', 
-                        year(s$time[1]),' - ',year(tail(s$time,1)),')')
-    }
     plot_rain_series(time=s$time, 
                      vals=s$vals, 
                      title_x="Year",
@@ -279,6 +280,7 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
   #^****************************************************************************
   flag_check_daily=F        # FOR DEBUGGING ONLY !!!!
   if (flag_check_daily){
+    message('checking AMAX series on daily aggregates...')
     precip_boulder=data.frame(date=s$time,
                               values=s$vals)
     daily_sum_precip<-precip_boulder %>%
@@ -581,7 +583,7 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
     # MK trend and Linear regression of n:
     #^**************************************************************************
     trendn=trend_n(s_obj         = s, 
-                   alpha         = 0.05,  # Assign significance level of the test
+                   alpha         = 0.05, # Assign significance level of the test
                    dir.res_trend = dir.res_pix,
                    dur           = dur,
                    nfplot        = nfplot,
