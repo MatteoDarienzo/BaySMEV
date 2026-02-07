@@ -148,8 +148,8 @@ flag_like=F  # T/F perform or not the maximum likelihood method.
 flag_save=T  # compute all quantiles and comparison between models.
 filter_fact=1
 filter_fact_2=1
-dir_input='C:/Users/MATTEO/Documents/PRIN/Data/Satellite_data/1_hour/' # folder path of satellite data
-dir_shp_mask='C:/Users/MATTEO/Documents/PRIN/Qgis/georef-italy-regione/georef-italy-regione-millesime.shp' # shp with admin limits
+dir_input='C:/Users/MATTEO/Documents/PRIN/Data/Satellite_data/1_hour/' # path of satellite data
+filename_input='IMERG_italy_hourly_2001_2024_aggreg_0.20deg.rds' # filename of satellite data
 # dir_results=paste0('C:/Users/MATTEO/Documents/PRIN/Results/BaySMEV/',
 #                    case_study,'/',sat_prod)  # results directory
 dir_results=paste0('E:/save_lenovo_unipd_20250711/Documents/PRIN/Results/BaySMEV/',
@@ -213,7 +213,7 @@ priors_gev<-list(loc=list("uniform",0,100,1),
 # Creation of the folder with results.
 dir.create(dir_results,recursive=T)
 rm(rain_data)
-rain_data<-readRDS(paste0(dir_input, "/IMERG_italy_hourly_2001_2024_aggreg_0.20deg.rds"))
+rain_data<-readRDS(paste0(dir_input,'/',filename_input))
 
 
 
