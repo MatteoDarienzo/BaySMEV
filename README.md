@@ -34,7 +34,7 @@ It contains tools for rainfall extreme analysis with both stationary and non-sta
 
 - An example of main launcher ("smev_main_EXAMPLE.R") and associated ".rds" R data file with precipitation timeseries are provided in order to run the script and test its functionalities and different settings. For the use of BaySMEV to gridded datasets please refers to main launcher "smev_main_sat_IMERG.R" which performs SMEV analysis (stationary or nonstationary) for each pixel.
 
-- For creating maps with results of the SMEV analysis computed on gridded datasets, please use postprocessing modude "/BaySMEV/postprocessing/smev_results_maps_IMERG.R".
+- For creating maps with results of the SMEV analysis computed on gridded datasets, please use postprocessing module "/BaySMEV/postprocessing/smev_results_maps_IMERG.R".
 
 
 
@@ -42,7 +42,7 @@ It contains tools for rainfall extreme analysis with both stationary and non-sta
 
 This research has been supported by the INTENSE project (raINfall exTremEs and their impacts: from the local to the National ScalE) funded by the European Union - Next Generation EU in the framework of PRIN (Progetti di ricerca di Rilevante Interesse Nazionale) programme (grant 2022ZC2522).
 
-BaySMEV codes have been used for paper Darienzo et al. ("Contrasting changes in extreme hourly precipitation across Italy revealed by satellite and re-analysis products, in preparation).
+BaySMEV codes have been developed and used for paper Darienzo et al. ("Contrasting changes in extreme hourly precipitation across Italy revealed by satellite and re-analysis products, in preparation).
 
 BaySMEV takes inspiration from matlab codes of Marra et al., 2019 downloadable from https://zenodo.org/records/11934843 (SMEV methodology, including storm separation) and https://zenodo.org/records/15047817 (for the non-stationary model implementation).
 
@@ -78,6 +78,7 @@ For any question or feedback please contact us at:
 # Example (main function, see "smev_main_EXAMPLE.R"):
 
 Main function for SMEV analysis with most of settings with values by default (from "/module_smev_main.R").
+
          s_base <- smev_analysis_main(rain.df           = rain.df,
                                       name_project      = 'DEMO',
                                       dir_results       = "",

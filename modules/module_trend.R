@@ -1,3 +1,4 @@
+
 library(trend)
 
 
@@ -14,12 +15,21 @@ trend_AMAX =function(s,
   #^* CREATED/MODIFIED: 2025/11/28
   #^****************************************************************************
   #^* IN
-  #^*    1. [real] E --> mean of the Gaussian distribution
-  #^*    2. [real] stdev --> stand.dev. of the Gaussian distribution
+  #^*    1. [list of lists] s --> main object with SMEV results, here it needs:
+  #^*                             s$AMS,s$sat_prod,s$row,s$col,s$durations, 
+  #^*                             s$time,s$name_project,s$t, s$blocks.
+  #^*    2. [real] alpha --> significance level of the trend tests, e.g.,0.05.
+  #^*    2. [character] dir.res_trend --> path of results of trend tests.
+  #^*    2. [integer] dur --> current duration analysed.
   #^* OUT
   #^*    list()
-  #^*    1. [real] mu --> mean of the Lognormal distribution
-  #^*    2. [real] sd --> standard deviation of the lognormal distribution
+  #^*    1. trendAMAXplot,
+  #^*    2. flag_save
+  #^*    3. flag_like
+  #^*    4. signif_trend
+  #^*    5. res_MK
+  #^*    6. senss
+  #^*    7. sensslope
   #^****************************************************************************
   #^* REF.: use of package "trend" for MK test (mk.test()) and Sen's slope test 
   #^*       (sens.slope())
@@ -31,9 +41,9 @@ trend_AMAX =function(s,
   # initialization:
   flag_save=flag_like=signif_trend=res_MK=senss=sensslope=0
   
-  
+  #^****************************************************************************
   # MANN-KENDALL AND SENSS SLOPE TESTS
-  ####################################
+  #^****************************************************************************
   # The null hypothesis is that the data come from a population with 
   # independent realizations and are identically distributed.
   # For the two sided test, the alternative hypothesis is that the data 
@@ -48,8 +58,9 @@ trend_AMAX =function(s,
   # print("Using R package trend with function 'sens.slope()'... ")
   senss=sens.slope(na.omit(s$AMS[,dur]))
   
+  #^****************************************************************************
   # Significance level at alpha (e.g., 0.05)
-  ##########################################
+  #^****************************************************************************
   signif_trend=F
   if (res_MK$p.value<=alpha){
     # Significant trend detected:
@@ -71,8 +82,9 @@ trend_AMAX =function(s,
     print('Perform all calculations')
   }
   
+  #^****************************************************************************
   # plot trend:
-  #############
+  #^****************************************************************************
   if ((!is.null(s$row))|(!is.null(s$col))|(!is.null(s$sat_prod))){
     nfplot_trend=paste0(dir.res_trend,"/trend_AMAX_",durations[dur]/60,"h_", 
                         s$sat_prod,"_",s$row,"_",s$col,".png")
@@ -131,49 +143,79 @@ trend_n = function(s_obj         = list(),
                    nfplot        ='.png',
                    title_plot    =''){
 ################################################################################
+  #^* GOAL: trend analysis on n series (MK and Sens's slope test)
+  #^****************************************************************************
+  #^* PROGRAMMER
+  #^****************************************************************************
+  #^* CREATED/MODIFIED: 2025/11/28
+  #^****************************************************************************
+  #^* IN
+  #^*    1. [list of lists] s_obj -->main object with SMEV results, it needs:
+  #^*                             s_obj$years, s_obj$years_unique, s_obj$ncount,
+  #^*                             s_obj$t, s_obj$blocks.
+  #^*    2. [real] alpha --> significance level of the trend tests, e.g.,0.05.
+  #^*    3. [character] dir.res_trend --> path of results of trend tests.
+  #^*    4. [integer] dur --> current duration analysed.
+  #^*    5. [character] nfplot --> filename of the png figure to be saved.
+  #^*    6. [character] title_plot --> plot title
+  #^* OUT
+  #^*    list()
+  #^*    1. n_lmfit,
+  #^*    2. trend_n_plot
+  #^*    3. signif_trend_n
+  #^*    4. n_MK
+  #^*    5. n_senss
+  #^*    6. n_sensslope
+  #^****************************************************************************
+  #^* REF.: use of package "trend" for MK test (mk.test()) and Sen's slope test 
+  #^*       (sens.slope()), and of lm for linear regression.
+  #^****************************************************************************
+  #^* to do: 
+  #^****************************************************************************
+  #^* COMMENTS:
+  #^****************************************************************************
   
-  # Linear regression:
-  ####################
-  n_lmfit = lm(s_obj$ncount[[dur]] ~ s_obj$years)
+  #^****************************************************************************
+  # Linear regression (lm function):
+  #^****************************************************************************
+  n_lmfit=lm(s_obj$ncount[[dur]] ~ s_obj$years)
   
-  # plot lin regression:
-  png(filename = paste0(dir.res_trend, "/lin_regr_n_", paste0(durations[dur]/60, "h"),
-                        nfplot), width=700, height=500)
-  plot(x    = s_obj$years_unique,
-       y    = s_obj$ncount[[dur]], 
-       main = paste0("Number of ordinary events per year, n, \n duration=",
-                    durations[dur]/60, "h ", title_plot), 
-       xlab="Year", ylab="number of ord. events, n", lwd=2,
-       cex.lab=1.6, cex.axis=1.2, cex=1.5, cex.main=1.5, cex.sub=2)
-  lines(x = s_obj$years_unique, 
-        y = n_lmfit$coefficients[1] + n_lmfit$coefficients[2]*s_obj$years, 
-        col='red', lwd=2)
+  # plot linear regression, png:
+  png(filename=paste0(dir.res_trend,"/lin_regr_n_",paste0(durations[dur]/60,"h"),
+                        nfplot),width=700,height=500)
+  plot(x=s_obj$years_unique,
+       y=s_obj$ncount[[dur]], 
+       main=paste0("Number of ordinary events per year, n, \n duration=",
+                   durations[dur]/60,"h ",title_plot), 
+       xlab="Year",ylab="number of ord. events, n",lwd=2,
+       cex.lab=1.6,cex.axis=1.2,cex=1.5,cex.main=1.5,cex.sub=2)
+  lines(x=s_obj$years_unique, 
+        y=n_lmfit$coefficients[1]+n_lmfit$coefficients[2]*s_obj$years,
+        col='red',lwd=2)
   dev.off()
   
-  
-  
+  #^****************************************************************************
   # MK trend on n:
-  ################
+  #^****************************************************************************
   # MK test & Sen's slope test applied to n:
   n_MK = trend::mk.test(na.omit(s_obj$ncount[[dur]]), 
-                        alternative = c("two.sided", "greater", "less"), 
-                        continuity = T)
+                        alternative=c("two.sided","greater","less"), 
+                        continuity=T)
+  # Computes Sen’s slope for linear rate of change and 
+  # corresponding confidence intervals:
+  n_senss=sens.slope(na.omit(s_obj$ncount[[dur]]))
+  df_trend_n=data.frame(t=unique(s_obj$t),
+                        y=na.omit(s_obj$ncount[[dur]]), 
+                        date=s_obj$blocks)
+  trend_n_plot=trend_n.plot(
+    df_trend_n=df_trend_n,
+    res_MK=n_MK,
+    senss=n_senss,
+    title= paste0('Trend on number of ord. events, n - duration ', 
+                  durations[dur]/60,'h [mm/h] \n',title_plot),
+    pathout=paste0(dir.res_trend,"/trend_n_",durations[dur]/60,"h",nfplot))
   
-  # Computes Sen’s slope for linear rate of change and corresponding confidence intervals
-  n_senss = sens.slope(na.omit(s_obj$ncount[[dur]]))
-  
-  df_trend_n = data.frame(t    = unique(s_obj$t),
-                          y    = na.omit(s_obj$ncount[[dur]]), 
-                          date = s_obj$blocks)
-  
-  trend_n_plot = trend_n.plot(df_trend_n = df_trend_n,
-                              res_MK     = n_MK,
-                              senss      = n_senss,
-                              title      = paste0('Trend on number of ordinary events, n - duration ', 
-                                                  durations[dur]/60, 'h [mm/h] \n', title_plot),
-                              pathout    = paste0(dir.res_trend, "/trend_n_", durations[dur]/60, "h", nfplot))
-  trend_n_plot$duration = paste0(durations[dur]/60, 'h')
-  
+  trend_n_plot$duration=paste0(durations[dur]/60,'h')
   
   # Significance level at 0.05 (alpha):
   signif_trend_n=F
@@ -186,12 +228,11 @@ trend_n = function(s_obj         = list(),
     } else {
       print("Signif. Decreasing significant trend detected on n!")
     }
-    signif_trend_n = T
+    signif_trend_n=T
   } else {
     print('No trend detected on n')
   }
 
-  
   return(list(n_lmfit        = n_lmfit,
               trend_n_plot   = trend_n_plot,
               signif_trend_n = signif_trend_n,
