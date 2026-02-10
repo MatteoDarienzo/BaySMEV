@@ -1,7 +1,7 @@
 # BaySMEV
 BAYesian Simplified Metastatistical Extreme Value method
 
-- v. 1.0.0
+- v1.0.0
 
 - Author: Matteo Darienzo (University of Padua, Padua, Italy)
 
@@ -9,7 +9,7 @@ BAYesian Simplified Metastatistical Extreme Value method
 
 - Year: 2025
 
-- Funders: NextEU PNRR (PRIN2022 "INTENSE" project)
+- Funders: NextEU PNRR (PRIN2022 "INTENSE" project, grant 2022ZC2522, https://intenseproject.uniud.it/en/)
 
 - Last update: 10/01/2026
 
@@ -39,6 +39,8 @@ It contains tools for rainfall extreme analysis with both stationary and non-sta
 - For creating maps with results of the SMEV analysis computed on gridded datasets, please use postprocessing module "/BaySMEV/postprocessing/smev_results_maps_IMERG.R".
 
 - To apply BaySMEV to rain gauges datasets, you can use main launcher "smev_main_gauges.R" as an example.
+
+- single storm type is here implemented. Multi-type SMEV is under development and will be available in future releases. 
 
 
 
