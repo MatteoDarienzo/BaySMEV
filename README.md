@@ -32,9 +32,13 @@ It contains tools for rainfall extreme analysis with both stationary and non-sta
 
 - BaySMEV source codes are written in R.
 
-- An example of main launcher ("smev_main_EXAMPLE.R") and associated ".rds" R data file with precipitation timeseries are provided in order to run the script and test its functionalities and different settings. For the use of BaySMEV to gridded datasets please refers to main launcher "smev_main_sat_IMERG.R" which performs SMEV analysis (stationary or nonstationary) for each pixel.
+- An example of main launcher ("smev_main_EXAMPLE.R") and associated ".rds" R data file with precipitation timeseries are provided in order to run the script and test its functionalities and different settings. 
+
+- To apply BaySMEV to gridded datasets (satellite, reanalysis data) please refer to main launcher "smev_main_sat_IMERG.R" which performs SMEV analysis (stationary or nonstationary) for each pixel of the dataset.
 
 - For creating maps with results of the SMEV analysis computed on gridded datasets, please use postprocessing module "/BaySMEV/postprocessing/smev_results_maps_IMERG.R".
+
+- To apply BaySMEV to rain gauges datasets, you can use main launcher "smev_main_gauges.R" as an example.
 
 
 

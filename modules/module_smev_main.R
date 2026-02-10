@@ -647,16 +647,16 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
     # - All inferred models must have same number of posterior draws:
     # - At least posterior draws from smev ns are needed!
     print("compute quantiles...")
-    s_tmp_SMEV[[dur]] = compute_quantiles_SMEV(s                = s,
-                                               estim_algorithm  = estim_algorithm,
-                                               target_T         = target_T,
-                                               flg_save         = T,
-                                               id               = dur,
-                                               filter_spaghetti = 10,
-                                               flag_smev_stat   = flag_smev_stat,
-                                               flag_smev_partns = flag_smev_partns,
-                                               flag_smev_ns     = flag_smev_ns,
-                                               flag_gev_stat    = flag_gev_stat)
+    s_tmp_SMEV[[dur]]=compute_quantiles_SMEV(s                = s,
+                                             estim_algorithm  = estim_algorithm,
+                                             target_T         = target_T,
+                                             flg_save         = T,
+                                             id               = dur,
+                                             filter_spaghetti = 10,
+                                             flag_smev_stat   = flag_smev_stat,
+                                             flag_smev_partns = flag_smev_partns,
+                                             flag_smev_ns     = flag_smev_ns,
+                                             flag_gev_stat    = flag_gev_stat)
     s_tmp_SMEV[[dur]]$duration=paste0(durations[dur]/60, 'h')
     
     # spaghetti plot (SMEV halfperiod):
@@ -780,8 +780,8 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
   # Sn[[idx]] = s
   if (flag_save2rds){
     if ((!is.null(s$row))|(!is.null(s$col))|(!is.null(s$sat_prod))){
-      # save object s to rds file for pixel idx:
-      saveRDS(s,paste0(dir_results,"/s_",s$sat_prod,"_pix_",row,"_",col,".rds"))
+      # save object s to .rds file for pixel idx (s$row,s$col):
+      saveRDS(s,paste0(dir_results,"/s_",s$sat_prod,"_pix_",s$row,"_",s$col,".rds"))
     } else {
       saveRDS(s,paste0(dir_results,"/s_",s$name_project,".rds"))
     }
