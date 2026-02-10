@@ -7,6 +7,27 @@ trend_AMAX =function(s,
                      dir.res_trend, 
                      dur=NULL){
 ################################################################################
+  #^* GOAL: trend analysis on AMAX series (MK and Sens's slope test)
+  #^****************************************************************************
+  #^* PROGRAMMER
+  #^****************************************************************************
+  #^* CREATED/MODIFIED: 2025/11/28
+  #^****************************************************************************
+  #^* IN
+  #^*    1. [real] E --> mean of the Gaussian distribution
+  #^*    2. [real] stdev --> stand.dev. of the Gaussian distribution
+  #^* OUT
+  #^*    list()
+  #^*    1. [real] mu --> mean of the Lognormal distribution
+  #^*    2. [real] sd --> standard deviation of the lognormal distribution
+  #^****************************************************************************
+  #^* REF.: use of package "trend" for MK test (mk.test()) and Sen's slope test 
+  #^*       (sens.slope())
+  #^****************************************************************************
+  #^* to do: 
+  #^****************************************************************************
+  #^* COMMENTS:
+  #^****************************************************************************
   # initialization:
   flag_save=flag_like=signif_trend=res_MK=senss=sensslope=0
   
@@ -19,66 +40,66 @@ trend_AMAX =function(s,
   # follow a monotonic trend.
   print('Mann-Kendall trend analysis on AMAX:')
   # If continuity = TRUE then a continuity correction will be employed:
-  res_MK = trend::mk.test(na.omit(s$AMS[,dur]), 
-                          alternative = c("two.sided", "greater", "less"), continuity = TRUE)
+  res_MK=trend::mk.test(na.omit(s$AMS[,dur]), 
+                        alternative=c("two.sided","greater","less"),continuity=T)
   
-  # Computes Sen’s slope for linear rate of change and corresponding confidence intervalls
+  # Computes Sen’s slope for linear rate of change and corresponding 
+  # confidence intervals.
   # print("Using R package trend with function 'sens.slope()'... ")
-  senss = sens.slope(na.omit(s$AMS[,dur]))
-  
-  
+  senss=sens.slope(na.omit(s$AMS[,dur]))
   
   # Significance level at alpha (e.g., 0.05)
   ##########################################
   signif_trend=F
-  if (res_MK$p.value <= alpha){
+  if (res_MK$p.value<=alpha){
     # Significant trend detected:
     print('Signif. MK trend detected on AMAX!')
     # Sen's Slope test (ss>0 positive trend, <0 negative trend):
-    if (senss$estimates[["Sen's slope"]] >0){
+    if (senss$estimates[["Sen's slope"]] > 0){
       print("Signif. Increasing significant trend detected on AMAX!")
     } else {
       print("Signif. Decreasing significant trend detected on AMAX!")
     }
-    signif_trend = T
+    signif_trend=T
   } else {
     print('No trend detected on AMAX')
     
   }
-  
-  if (signif_trend == T){
+  if (signif_trend==T){
     flag_save=T
     flag_like=T
     print('Perform all calculations')
   }
   
-
   # plot trend:
   #############
-  if ((!is.null(s$row)) | (!is.null(s$col)) | (!is.null(s$sat_prod))){
-    nfplot_trend = paste0(dir.res_trend, "/trend_AMAX_", durations[dur]/60, "h_", s$sat_prod, "_", s$row,"_",s$col,".png")
-    title_trend_plot = paste0('Trend on AMAX rainfall - duration ',
-                        s$durations[dur]/60, 'h [mm/h] \n', 
-                        '(', s$sat_prod, ', ', year(s$time[1]), ' - ', 
-                        year( tail(s$time,1)), ', pix:', s$row, '-', s$col, ')')
+  if ((!is.null(s$row))|(!is.null(s$col))|(!is.null(s$sat_prod))){
+    nfplot_trend=paste0(dir.res_trend,"/trend_AMAX_",durations[dur]/60,"h_", 
+                        s$sat_prod,"_",s$row,"_",s$col,".png")
+    title_trend_plot=paste0('Trend on AMAX rainfall - duration ',
+                        s$durations[dur]/60,'h [mm/h] \n', 
+                        '(', s$sat_prod,', ',year(s$time[1]),' - ',
+                        year( tail(s$time,1)),', pix:',s$row,'-',s$col,')')
   } else {
     # generic case
-    nfplot_trend= paste0(dir.res_trend, "/trend_AMAX_", durations[dur]/60, "h_", s$name_project, ".png")
-    title_trend_plot = paste0('Trend on AMAX rainfall - duration ', 
-                        s$durations[dur]/60, 'h [mm/h] \n', 
-                        '(', s$name_project, ", ", year(s$time[1]), ' - ',  year( tail(s$time,1)), ')')
+    nfplot_trend=paste0(dir.res_trend,"/trend_AMAX_",durations[dur]/60,"h_",
+                        s$name_project,".png")
+    title_trend_plot=paste0('Trend on AMAX rainfall - duration ', 
+                        s$durations[dur]/60,'h [mm/h] \n', 
+                        '(', s$name_project,", ",year(s$time[1]),' - ',
+                        year( tail(s$time,1)),')')
   }
+  print(paste0("saving figure with trend at: ",nfplot_trend))
+  df_trend_AMAX=data.frame(t=unique(s$t),
+                           y=na.omit(s$AMS[,dur]), 
+                           date=s$blocks)
+  trendAMAXplot=trendAMAX.plot(df_trend_AMAX=df_trend_AMAX,
+                               res_MK=res_MK,
+                               senss=senss,
+                               title=title_trend_plot,
+                               pathout=nfplot_trend)
+  trendAMAXplot$duration=paste0(s$durations[dur]/60,'h')
   
-  print(paste0("saving figure with trend at: ", nfplot_trend))
-  df_trend_AMAX = data.frame(t=unique(s$t), y=na.omit(s$AMS[,dur]), date=s$blocks)
-
-  trendAMAXplot = trendAMAX.plot(df_trend_AMAX = df_trend_AMAX,
-                                 res_MK        = res_MK,
-                                 senss         = senss,
-                                 title         = title_trend_plot,
-                                 pathout       = nfplot_trend)
-  trendAMAXplot$duration = paste0(s$durations[dur]/60, 'h')
-
   return(list(trendAMAXplot= trendAMAXplot,
               flag_save    = flag_save,
               flag_like    = flag_like,

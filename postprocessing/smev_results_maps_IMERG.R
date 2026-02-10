@@ -11,7 +11,8 @@
 #------------------------------------------------------------------------------#
 #                        Main objective of the program                         #
 #------------------------------------------------------------------------------#
-# This program performs the SMEV method (Marra et al., 2020) for rainfall      #
+# This is a post-processing module of BaySMEV:                                 #
+# It analizes results from BaySMEV (SMEV method, Marra et al.,2020)for rainfall#
 # extreme analysis, which is a simplified version of the MEV approach (Marani  #
 # and Ignaccolo,2015). This method makes use of all ordinary events, not only  #
 # for a small sample of extremes (e.g., annual maxima).                        #
@@ -26,6 +27,13 @@
 # - Maximum likelihood or Posterior sampling within a Bayesian framework using #
 #   an Hamiltonian MCMC algorithm with Rstan/cmdstanr R packages.              #
 # Moreover, both stationary and non-stationary frameworks are available.       #
+#                                                                              #
+# This specific module uploads all previous results from a gridded dataset     #
+# (e.g., satellite product) where for each pixel a .rds data file is available #
+# Then it computes maps for different variables and parameters, and of their   #
+# changes, such as: SMEV/GEV parameters estimates (maxpost, MLE) and CI,       #
+# quantiles estimates for different return periods, and related decadal changes#
+# in %. All of these for different durations (e.g., 1h,3h,6h,24h).             # 
 #                                                                              #
 #------------------------------------------------------------------------------#
 #                               Acknowledgements                               #
@@ -162,10 +170,21 @@ flag_read_only=T
 # will be removed from memory in a few lines.
 rain_data<-readRDS(paste0(dir_input,'/',filename_input))
 
-# get rain product grid lat/lon:
-tmp_array=rain_data$tmp_array_aggr_ALL_hourly[,,1]
-lon=rain_data$lon_aggr
-lat=rain_data$lat_aggr
+# Get rain product grid (check for proper field name):
+if ("tmp_array_aggr_ALL_hourly" %in% names(rain_data)){
+  tmp_array=rain_data$tmp_array_aggr_ALL_hourly[,,1]
+} else {
+  tmp_array=rain_data$tmp_array_ALL_hourly[,,1]
+}
+# Get lat and lon (check for proper field name):
+if ("lon_aggr" %in% names(rain_data)){
+  lon=rain_data$lon_aggr
+  lat=rain_data$lat_aggr
+} else {
+  lon=rain_data$lon
+  lat=rain_data$lat
+} 
+
 # fix the crs (wgs84)
 crswgs84=CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # read shp file with regions limits of Italy:
@@ -174,22 +193,30 @@ test<-read_sf(dsn=dir_shp_mask)
 gg_world=ne_countries(scale="medium",returnclass="sf")
 # read shp file with World country limits:
 land_shp<-read_sf(dsn=dir_shp_world)
-# lat/lon for map plot:
+# create lat/lon grid for map plot:
 lat_tmp=lon_tmp=c()
-for (row in 1:nrow(tmp_array)) {
-  for (col in 1:ncol(tmp_array)) {
-    lat_tmp=c(lat_tmp, lat[col])
-    lon_tmp=c(lon_tmp, lon[row]) 
+for (row in 1:nrow(tmp_array)){
+  for (col in 1:ncol(tmp_array)){
+    lat_tmp=c(lat_tmp,lat[col])
+    lon_tmp=c(lon_tmp,lon[row]) 
   }
 }
 # plot the indeces of the grid:
-plot_map_indexes(tmp_array,
-                 lon_tmp,
-                 lat_tmp,
+plot_map_indexes(tmp_array=tmp_array,
+                 lon_tmp=lon_tmp,
+                 lat_tmp=lat_tmp,
                  mask_shp=test,
                  mask_world=gg_world,
                  path_output=paste0(dir_results,"/map_",sat_prod,"_indexes.png"),
-                 crs_map=crswgs84)
+                 crs_map=crswgs84,
+                 title_x="Longitude (°E)",
+                 title_y="Latitude (°N)",
+                 breaks_x=c(6.00001,10,14,18),
+                 breaks_y=c(36.00001,40,44,47.9999),
+                 labels_x=c("6°E","10°E","14°E","18°E"),
+                 labels_y=c("36°N","40°N","44°N","48°N"),
+                 limits_x=c(6,19),
+                 limits_y=c(36,48))
 # Remove ancillary memory
 rm(rain_data)
 gc() # free the memory
@@ -202,7 +229,11 @@ gc() # free the memory
 ################################################################################
 #               LOADING RESULTS FOR EACH PIXEL FROM .RDS FILES:
 ################################################################################
+# load initialization module:
+# this module inizializes all lists for the maps of different variables and  
+# parameters that are computed or loaded hereafter:
 source(paste0(dir_code,"/module_initialize_maps.R"))
+
 if (flag_read_only==F){
   # Load extra info from the pixel 1,1:
   ss<-readRDS(paste0(dir_results,"/",sat_prod,"/thr_",thr_leftcens, 
@@ -223,7 +254,7 @@ if (flag_read_only==F){
       #^************************************************************************
       print(c(row,col))
       pix=pix+1
-      if ((row==1&col==1)|((row %% filter_fact ==0)&(col %% filter_fact ==0))){
+      if ((row==1&col==1)|((row %% filter_fact==0)&(col %% filter_fact==0))){
         dir.res_pix=paste0(dir_results,"/",sat_prod,"/thr_",thr_leftcens,"/pix_",row,"_",col)
         
         if (file.exists(paste0(dir.res_pix,"/s_",sat_prod,"_pix_",row,"_",col,".rds"))){
@@ -233,66 +264,66 @@ if (flag_read_only==F){
           #^********************************************************************
           # NonStationary SMEV:
           #^********************************************************************
-          a_w_quant5_Post_1h[pix]= ss$s_ns_tmp[[1]]$a_w_quant_Post[[1]]
-          a_w_quant50_Post_1h[pix]= ss$s_ns_tmp[[1]]$a_w_quant_Post[[2]]
-          a_w_quant95_Post_1h[pix]= ss$s_ns_tmp[[1]]$a_w_quant_Post[[3]]
-          a_w_quant5_Post_3h[pix]= ss$s_ns_tmp[[2]]$a_w_quant_Post[[1]]
-          a_w_quant50_Post_3h[pix]= ss$s_ns_tmp[[2]]$a_w_quant_Post[[2]]
-          a_w_quant95_Post_3h[pix]= ss$s_ns_tmp[[2]]$a_w_quant_Post[[3]]
-          a_w_quant5_Post_6h[pix]= ss$s_ns_tmp[[3]]$a_w_quant_Post[[1]]
-          a_w_quant50_Post_6h[pix]= ss$s_ns_tmp[[3]]$a_w_quant_Post[[2]]
-          a_w_quant95_Post_6h[pix]= ss$s_ns_tmp[[3]]$a_w_quant_Post[[3]]
-          a_w_quant5_Post_24h[pix]= ss$s_ns_tmp[[4]]$a_w_quant_Post[[1]]
-          a_w_quant50_Post_24h[pix]= ss$s_ns_tmp[[4]]$a_w_quant_Post[[2]]
-          a_w_quant95_Post_24h[pix]= ss$s_ns_tmp[[4]]$a_w_quant_Post[[3]]
+          a_w_quant5_Post_1h[pix]=ss$s_ns_tmp[[1]]$a_w_quant_Post[[1]]
+          a_w_quant50_Post_1h[pix]=ss$s_ns_tmp[[1]]$a_w_quant_Post[[2]]
+          a_w_quant95_Post_1h[pix]=ss$s_ns_tmp[[1]]$a_w_quant_Post[[3]]
+          a_w_quant5_Post_3h[pix]=ss$s_ns_tmp[[2]]$a_w_quant_Post[[1]]
+          a_w_quant50_Post_3h[pix]=ss$s_ns_tmp[[2]]$a_w_quant_Post[[2]]
+          a_w_quant95_Post_3h[pix]=ss$s_ns_tmp[[2]]$a_w_quant_Post[[3]]
+          a_w_quant5_Post_6h[pix]=ss$s_ns_tmp[[3]]$a_w_quant_Post[[1]]
+          a_w_quant50_Post_6h[pix]=ss$s_ns_tmp[[3]]$a_w_quant_Post[[2]]
+          a_w_quant95_Post_6h[pix]=ss$s_ns_tmp[[3]]$a_w_quant_Post[[3]]
+          a_w_quant5_Post_24h[pix]=ss$s_ns_tmp[[4]]$a_w_quant_Post[[1]]
+          a_w_quant50_Post_24h[pix]=ss$s_ns_tmp[[4]]$a_w_quant_Post[[2]]
+          a_w_quant95_Post_24h[pix]=ss$s_ns_tmp[[4]]$a_w_quant_Post[[3]]
           
-          b_w_quant5_Post_1h[pix]= ss$s_ns_tmp[[1]]$b_w_quant_Post[[1]]
-          b_w_quant50_Post_1h[pix]= ss$s_ns_tmp[[1]]$b_w_quant_Post[[2]]
-          b_w_quant95_Post_1h[pix]= ss$s_ns_tmp[[1]]$b_w_quant_Post[[3]]
-          b_w_quant5_Post_3h[pix]= ss$s_ns_tmp[[2]]$b_w_quant_Post[[1]]
-          b_w_quant50_Post_3h[pix]= ss$s_ns_tmp[[2]]$b_w_quant_Post[[2]]
-          b_w_quant95_Post_3h[pix]= ss$s_ns_tmp[[2]]$b_w_quant_Post[[3]]
-          b_w_quant5_Post_6h[pix]= ss$s_ns_tmp[[3]]$b_w_quant_Post[[1]]
-          b_w_quant50_Post_6h[pix]= ss$s_ns_tmp[[3]]$b_w_quant_Post[[2]]
-          b_w_quant95_Post_6h[pix]= ss$s_ns_tmp[[3]]$b_w_quant_Post[[3]]
-          b_w_quant5_Post_24h[pix]= ss$s_ns_tmp[[4]]$b_w_quant_Post[[1]]
-          b_w_quant50_Post_24h[pix]= ss$s_ns_tmp[[4]]$b_w_quant_Post[[2]]
-          b_w_quant95_Post_24h[pix]= ss$s_ns_tmp[[4]]$b_w_quant_Post[[3]]
+          b_w_quant5_Post_1h[pix]=ss$s_ns_tmp[[1]]$b_w_quant_Post[[1]]
+          b_w_quant50_Post_1h[pix]=ss$s_ns_tmp[[1]]$b_w_quant_Post[[2]]
+          b_w_quant95_Post_1h[pix]=ss$s_ns_tmp[[1]]$b_w_quant_Post[[3]]
+          b_w_quant5_Post_3h[pix]=ss$s_ns_tmp[[2]]$b_w_quant_Post[[1]]
+          b_w_quant50_Post_3h[pix]=ss$s_ns_tmp[[2]]$b_w_quant_Post[[2]]
+          b_w_quant95_Post_3h[pix]=ss$s_ns_tmp[[2]]$b_w_quant_Post[[3]]
+          b_w_quant5_Post_6h[pix]=ss$s_ns_tmp[[3]]$b_w_quant_Post[[1]]
+          b_w_quant50_Post_6h[pix]=ss$s_ns_tmp[[3]]$b_w_quant_Post[[2]]
+          b_w_quant95_Post_6h[pix]=ss$s_ns_tmp[[3]]$b_w_quant_Post[[3]]
+          b_w_quant5_Post_24h[pix]=ss$s_ns_tmp[[4]]$b_w_quant_Post[[1]]
+          b_w_quant50_Post_24h[pix]=ss$s_ns_tmp[[4]]$b_w_quant_Post[[2]]
+          b_w_quant95_Post_24h[pix]=ss$s_ns_tmp[[4]]$b_w_quant_Post[[3]]
           
-          a_C_quant5_Post_1h[pix]= ss$s_ns_tmp[[1]]$a_C_quant_Post[[1]]
-          a_C_quant50_Post_1h[pix]= ss$s_ns_tmp[[1]]$a_C_quant_Post[[2]]
-          a_C_quant95_Post_1h[pix]= ss$s_ns_tmp[[1]]$a_C_quant_Post[[3]]
-          a_C_quant5_Post_3h[pix]= ss$s_ns_tmp[[2]]$a_C_quant_Post[[1]]
-          a_C_quant50_Post_3h[pix]= ss$s_ns_tmp[[2]]$a_C_quant_Post[[2]]
-          a_C_quant95_Post_3h[pix]= ss$s_ns_tmp[[2]]$a_C_quant_Post[[3]]
-          a_C_quant5_Post_6h[pix]= ss$s_ns_tmp[[3]]$a_C_quant_Post[[1]]
-          a_C_quant50_Post_6h[pix]= ss$s_ns_tmp[[3]]$a_C_quant_Post[[2]]
-          a_C_quant95_Post_6h[pix]= ss$s_ns_tmp[[3]]$a_C_quant_Post[[3]]
-          a_C_quant5_Post_24h[pix]= ss$s_ns_tmp[[4]]$a_C_quant_Post[[1]]
-          a_C_quant50_Post_24h[pix]= ss$s_ns_tmp[[4]]$a_C_quant_Post[[2]]
-          a_C_quant95_Post_24h[pix]= ss$s_ns_tmp[[4]]$a_C_quant_Post[[3]]
+          a_C_quant5_Post_1h[pix]=ss$s_ns_tmp[[1]]$a_C_quant_Post[[1]]
+          a_C_quant50_Post_1h[pix]=ss$s_ns_tmp[[1]]$a_C_quant_Post[[2]]
+          a_C_quant95_Post_1h[pix]=ss$s_ns_tmp[[1]]$a_C_quant_Post[[3]]
+          a_C_quant5_Post_3h[pix]=ss$s_ns_tmp[[2]]$a_C_quant_Post[[1]]
+          a_C_quant50_Post_3h[pix]=ss$s_ns_tmp[[2]]$a_C_quant_Post[[2]]
+          a_C_quant95_Post_3h[pix]=ss$s_ns_tmp[[2]]$a_C_quant_Post[[3]]
+          a_C_quant5_Post_6h[pix]=ss$s_ns_tmp[[3]]$a_C_quant_Post[[1]]
+          a_C_quant50_Post_6h[pix]=ss$s_ns_tmp[[3]]$a_C_quant_Post[[2]]
+          a_C_quant95_Post_6h[pix]=ss$s_ns_tmp[[3]]$a_C_quant_Post[[3]]
+          a_C_quant5_Post_24h[pix]=ss$s_ns_tmp[[4]]$a_C_quant_Post[[1]]
+          a_C_quant50_Post_24h[pix]=ss$s_ns_tmp[[4]]$a_C_quant_Post[[2]]
+          a_C_quant95_Post_24h[pix]=ss$s_ns_tmp[[4]]$a_C_quant_Post[[3]]
           
-          b_C_quant5_Post_1h[pix]= ss$s_ns_tmp[[1]]$b_C_quant_Post[[1]]
-          b_C_quant50_Post_1h[pix]= ss$s_ns_tmp[[1]]$b_C_quant_Post[[2]]
-          b_C_quant95_Post_1h[pix]= ss$s_ns_tmp[[1]]$b_C_quant_Post[[3]]
-          b_C_quant5_Post_3h[pix]= ss$s_ns_tmp[[2]]$b_C_quant_Post[[1]]
-          b_C_quant50_Post_3h[pix]= ss$s_ns_tmp[[2]]$b_C_quant_Post[[2]]
-          b_C_quant95_Post_3h[pix]= ss$s_ns_tmp[[2]]$b_C_quant_Post[[3]]
-          b_C_quant5_Post_6h[pix]= ss$s_ns_tmp[[3]]$b_C_quant_Post[[1]]
-          b_C_quant50_Post_6h[pix]= ss$s_ns_tmp[[3]]$b_C_quant_Post[[2]]
-          b_C_quant95_Post_6h[pix]= ss$s_ns_tmp[[3]]$b_C_quant_Post[[3]]
-          b_C_quant5_Post_24h[pix]= ss$s_ns_tmp[[4]]$b_C_quant_Post[[1]]
-          b_C_quant50_Post_24h[pix]= ss$s_ns_tmp[[4]]$b_C_quant_Post[[2]]
-          b_C_quant95_Post_24h[pix]= ss$s_ns_tmp[[4]]$b_C_quant_Post[[3]]
+          b_C_quant5_Post_1h[pix]=ss$s_ns_tmp[[1]]$b_C_quant_Post[[1]]
+          b_C_quant50_Post_1h[pix]=ss$s_ns_tmp[[1]]$b_C_quant_Post[[2]]
+          b_C_quant95_Post_1h[pix]=ss$s_ns_tmp[[1]]$b_C_quant_Post[[3]]
+          b_C_quant5_Post_3h[pix]=ss$s_ns_tmp[[2]]$b_C_quant_Post[[1]]
+          b_C_quant50_Post_3h[pix]=ss$s_ns_tmp[[2]]$b_C_quant_Post[[2]]
+          b_C_quant95_Post_3h[pix]=ss$s_ns_tmp[[2]]$b_C_quant_Post[[3]]
+          b_C_quant5_Post_6h[pix]=ss$s_ns_tmp[[3]]$b_C_quant_Post[[1]]
+          b_C_quant50_Post_6h[pix]=ss$s_ns_tmp[[3]]$b_C_quant_Post[[2]]
+          b_C_quant95_Post_6h[pix]=ss$s_ns_tmp[[3]]$b_C_quant_Post[[3]]
+          b_C_quant5_Post_24h[pix]=ss$s_ns_tmp[[4]]$b_C_quant_Post[[1]]
+          b_C_quant50_Post_24h[pix]=ss$s_ns_tmp[[4]]$b_C_quant_Post[[2]]
+          b_C_quant95_Post_24h[pix]=ss$s_ns_tmp[[4]]$b_C_quant_Post[[3]]
           
-          a_w_MAP_ns_1h[pix] = ss$s_ns_tmp[[1]]$theta_maxpost[1] # maxpost shape intercept
-          a_w_MAP_ns_3h[pix] = ss$s_ns_tmp[[2]]$theta_maxpost[1]
-          a_w_MAP_ns_6h[pix] = ss$s_ns_tmp[[3]]$theta_maxpost[1]
-          a_w_MAP_ns_24h[pix]= ss$s_ns_tmp[[4]]$theta_maxpost[1] 
-          a_w_fmins_ns_1h[pix]= ss$s_ns_tmp[[1]]$theta_maxlik_fmins[1] # fminsearch method
-          a_w_fmins_ns_3h[pix]= ss$s_ns_tmp[[2]]$theta_maxlik_fmins[1] 
-          a_w_fmins_ns_6h[pix]= ss$s_ns_tmp[[3]]$theta_maxlik_fmins[1] 
-          a_w_fmins_ns_24h[pix]= ss$s_ns_tmp[[4]]$theta_maxlik_fmins[1] 
+          a_w_MAP_ns_1h[pix]=ss$s_ns_tmp[[1]]$theta_maxpost[1] # maxpost shape intercept
+          a_w_MAP_ns_3h[pix]=ss$s_ns_tmp[[2]]$theta_maxpost[1]
+          a_w_MAP_ns_6h[pix]=ss$s_ns_tmp[[3]]$theta_maxpost[1]
+          a_w_MAP_ns_24h[pix]=ss$s_ns_tmp[[4]]$theta_maxpost[1] 
+          a_w_fmins_ns_1h[pix]=ss$s_ns_tmp[[1]]$theta_maxlik_fmins[1] # fminsearch method
+          a_w_fmins_ns_3h[pix]=ss$s_ns_tmp[[2]]$theta_maxlik_fmins[1] 
+          a_w_fmins_ns_6h[pix]=ss$s_ns_tmp[[3]]$theta_maxlik_fmins[1] 
+          a_w_fmins_ns_24h[pix]=ss$s_ns_tmp[[4]]$theta_maxlik_fmins[1] 
           
           b_w_MAP_ns_1h[pix]=ss$s_ns_tmp[[1]]$theta_maxpost[2] # maxpost shape slope
           b_w_MAP_ns_3h[pix]=ss$s_ns_tmp[[2]]$theta_maxpost[2] 
@@ -559,7 +590,7 @@ if (flag_read_only==F){
           # Uncertainty (all spsghettis) at 90%:
           #^********************************************************************
           #^********************************************************************
-          # 1h:
+          #                            1h:
           #^********************************************************************
           dur=1
           all_post_shape0=ss$s_ns_tmp[[dur]]$zPost[,1]
@@ -617,7 +648,7 @@ if (flag_read_only==F){
             quantile(all_change_qnt2yr,c(0.05))[[1]]
           
           #^********************************************************************
-          # 3h:
+          #                            3h:
           #^********************************************************************
           dur=2 # 3h duration
           all_post_shape0=ss$s_ns_tmp[[dur]]$zPost[,1]
@@ -674,7 +705,7 @@ if (flag_read_only==F){
             quantile(all_change_qnt2yr,c(0.05))[[1]]
           
           #^********************************************************************
-          # 6h:
+          #                             6h:
           #^********************************************************************
           dur=3
           all_post_shape0=ss$s_ns_tmp[[dur]]$zPost[,1]
@@ -731,7 +762,7 @@ if (flag_read_only==F){
             quantile(all_change_qnt2yr,c(0.05))[[1]]
 
           #^********************************************************************
-          # 24h:
+          #                             24h:
           #^********************************************************************
           dur=4
           all_post_shape0=ss$s_ns_tmp[[dur]]$zPost[,1]
@@ -800,13 +831,65 @@ if (flag_read_only==F){
   base::save.image(dir_output_RData)
   
 } else {
-  # load previous reults from existing .RData file:
+  #^****************************************************************************
+  # load previous results from existing .RData file:
+  #^****************************************************************************
+  #^ Be careful with this: the upload of RData file includes the loading also 
+  # of all settings, directories and R functions saved in the rdata file, 
+  # which might be different from the current settings. 
+  # In case, recompile the settings and the current module functions.
   base::load(dir_input_RData)
 }
 
 
 
+#^******************************************************************************
+# Refine the directories and recompile here the R functions.
+#^******************************************************************************
+dir_code<-getwd()
+setwd(dir_code)
+setwd('../')
+# define the directory with the modules files:
+dir.modules=paste0(getwd(),"/modules")
+# Include all modules for computation:
+sapply(paste0(dir.modules,"/",list.files(paste0(getwd(),"/modules"))),source,chdir=F)
+setwd(dir_code)
 
+
+#^******************************************************************************
+# reload the settings
+#^******************************************************************************
+case_study='Italy' # case study name (the same name of the case study folder !!!): 
+sat_prod='IMERG_2001_2024' # name of results subfolder for the dataset
+time_resolut_prod='Hourly' # time resolution of input rainfall series
+date_final="2024-12-31 23:00:00" # final date for the analysis
+date_initial="2001-01-01 00:00:00" # initial date for the analysis
+min_rain=.1 # [mm] minimum value to define a time interval as 'wet'
+separation_in_min=1440 # [min] length of the dry periods to separate storms (e.g. 360)
+min_ev_duration=30 # [min] minimum duration of a storm
+target_T=sort(c(exp(seq(log(1.1),log(50),.1)),2,5,10,20,50,100)) # [year] target return periods   
+durations=c(1,3,6,24)*60  # [min] durations to be examined 
+time_resolution=60 # [min] time resolution of the input data (vals)
+thr_leftcens=0.9 # percentile threhsold for Weibull Left-censoring
+Nmcmc=4000  # total number of MCMC simulations (initial number)
+start_values=c(0.7,0,5,0) # starting values for mcmc sampling.
+flag_like=F  # T/F perform or not the maximum likelihood method.
+flag_save=T  # compute all quantiles and comparison between models.
+filter_fact=1
+filter_fact_2=1
+dir_input='C:/Users/MATTEO/Documents/PRIN/Data/Satellite_data/1_hour/' # folder path of satellite data
+filename_input='IMERG_italy_hourly_2001_2024_aggreg_0.20deg.rds' # filename of satellite data
+# dir_results=paste0('C:/Users/MATTEO/Documents/PRIN/Results/BaySMEV/',case_study,'/',sat_prod)  # results directory
+dir_results=paste0('E:/save_lenovo_unipd_20250711/Documents/PRIN/Results/BaySMEV/',case_study,'/',sat_prod)  # SMEV results directory (where .rds data files are located)
+
+sat_acron='IMERG' # acronyme of satellite products for plot titles
+dir_input_RData='E:/save_lenovo_unipd_20250711/Documents/PRIN/Scripts/smev_bayesian/Case_studies/Italy/Results/IMERG_2001_2024/thr_0.9/Results_IMERG_italy_1hr_2001_2024_smevns_NEW.RData'
+dir_output_RData='E:/save_lenovo_unipd_20250711/Documents/PRIN/Scripts/smev_bayesian/Case_studies/Italy/Results/IMERG_2001_2024/thr_0.9/Results_IMERG_italy_1hr_2001_2024_smevns_NEW.RData'
+dir.res_maps=paste0(dir_results,"/thr_",thr_leftcens,"/maps/")
+dir_shp_mask='C:/Users/MATTEO/Documents/PRIN/Qgis/georef-italy-regione/georef-italy-regione-millesime.shp' # shp with admin limits
+dir_shp_world='C:/Users/MATTEO/Documents/PRIN/Qgis/WorldGeog/WorldGeog.shp'
+dir_shp_user='E:/save_lenovo_unipd_20250711/Documents/PRIN/Qgis/geog_areas_paper2.shp' # some specific polygons for statistics
+flag_read_only=T
 
 
 
@@ -895,7 +978,7 @@ for (dur in 1:length(durations)){
   for (jj in 1:(nrow(tmp_array)*ncol(tmp_array))) {
     
     #^**************************************************************************
-    # SIGNIFIC AMAX:
+    #                      SIGNIFICANCE OF TRENDS IN AMAX:
     #^**************************************************************************
     signif_trend_AMAX[[dur]][jj]=eval(parse(text=paste0('signif_trend_',durations[dur]/60,'h')))[jj]
     sensslope_AMAX[[dur]][jj]=eval(parse(text=paste0('sensslope_AMAX_',durations[dur]/60,'h')))[jj]
@@ -914,7 +997,7 @@ for (dur in 1:length(durations)){
     }
     
     #^**************************************************************************
-    # mean change of "n" per decade:
+    #                   mean change of "n" per decade:
     #^**************************************************************************
     # % of change of n per decade wrw halfperiod year (a sort of average change per decade):
     if (!is.na(signif_trend_n[jj])){  # It is the same for each duration !!!
@@ -928,7 +1011,7 @@ for (dur in 1:length(durations)){
     }
     
     #^**************************************************************************
-    # SIGNIFICANCE OF NONSTATIONARY SMEV:
+    #                  SIGNIFICANCE OF NONSTATIONARY SMEV:
     #^**************************************************************************
     # Difference in DIC values ns vs stat. (min difference 3): 
     if (!is.na(eval(parse(text=paste0('DIC3_ns_',durations[dur]/60,'h')))[jj])){
@@ -1016,7 +1099,7 @@ for (dur in 1:length(durations)){
     }
     
     #^**************************************************************************
-    # CREDIBILITY INTERVALS:
+    #                        CREDIBILITY INTERVALS:
     #^**************************************************************************
     # Uncertainty on SMEV NonStationary parameters (4 params):
     if (!is.na(eval(parse(text=paste0('a_w_quant5_Post_',
@@ -1097,7 +1180,7 @@ for (dur in 1:length(durations)){
                                                     durations[dur]/60,'h')))[jj]-
                              eval(parse(text=paste0('a_L_gev_quant5_Post_',
                                                     durations[dur]/60,'h')))[jj])/
-        eval(parse(text=paste0('a_L_MAP_gev_',durations[dur]/60,'h')))[jj]     # CI loc intercept
+        eval(parse(text=paste0('a_L_MAP_gev_',durations[dur]/60,'h')))[jj]      # CI loc intercept
       
       a_w_CI_gev[[dur]][jj]=(eval(parse(text=paste0('a_w_gev_quant95_Post_',
                                                     durations[dur]/60,'h')))[jj] -
@@ -1109,9 +1192,8 @@ for (dur in 1:length(durations)){
                                                     durations[dur]/60,'h')))[jj] -
                              eval(parse(text=paste0('a_C_gev_quant5_Post_',
                                                     durations[dur]/60,'h')))[jj])/
-        eval(parse(text = paste0('a_C_MAP_gev_',durations[dur]/60, 'h')))[jj]     # CI scale intercept
+        eval(parse(text = paste0('a_C_MAP_gev_',durations[dur]/60, 'h')))[jj]   # CI scale intercept
     }
-    
     
     
     #^************************************************************************** 
@@ -1156,7 +1238,6 @@ for (dur in 1:length(durations)){
     
     # Get the number of decades within the period:
     n_decades=tail(years_smev,1)/10
-    
     
     #^**************************************************************************
     # 2 YEARS RETURN PERIOD:
@@ -1285,7 +1366,6 @@ for (dur in 1:length(durations)){
     quant_smev_ns_20yr_change[[dur]][jj]=(quant_smev_ns_20yr_last-quant_smev_ns_20yr_0)/ 
       eval(parse(text=paste0('qCurve_20yr_maxpost_',durations[dur]/60,'h')))[jj]*100/n_decades
     
-    
     #^**************************************************************************
     # 50 YEARS:
     #^**************************************************************************
@@ -1309,7 +1389,6 @@ for (dur in 1:length(durations)){
     quant_smev_ns_50yr_change[[dur]][jj]=(quant_smev_ns_50yr_last-quant_smev_ns_50yr_0)/
       eval(parse(text=paste0('qCurve_50yr_maxpost_',durations[dur]/60,'h')))[jj]*100/n_decades
     
-    
     #^**************************************************************************
     # # CI uncertainty of quantiles:
     #^**************************************************************************
@@ -1325,7 +1404,6 @@ for (dur in 1:length(durations)){
     # scale_t_maxpost_10=a_C_MAP_ns[[dur]][jj]+b_C_MAP_ns[[dur]][jj]*10 #decade
     # scale_t_maxpost_last=a_C_MAP_ns[[dur]][jj]+b_C_MAP_ns[[dur]][jj]*tail(years_smev,1) # last year
     # 
-    # 
     # quant_smev_ns_2yr_CI90_change[[dur]][jj]=(quant_smev_ns_2yr_CI90_last-quant_smev_ns_2yr_CI90_0)/
     #                                           quant_smev_ns_2yr_CI90_half*100/n_decades
     
@@ -1333,10 +1411,18 @@ for (dur in 1:length(durations)){
   }
 }
 
+
+
+
+
+
+
+
+
 #^******************************************************************************
-# statistical significance tests:
+# Get results of significance from trend tests:
 #^******************************************************************************
-# list of results 
+# make a list of tests results 
 significance=list(signif_MK_AMAX= signif_trend_AMAX,   # logical T/F
                   sensslope_AMAX= sensslope_AMAX,      # slope of the Sen's test
                   pval_MK_AMAX  = pval_MK_AMAX,        # p-value of the MK test
@@ -1345,9 +1431,9 @@ significance=list(signif_MK_AMAX= signif_trend_AMAX,   # logical T/F
                   DIC_diff1     = signif_ns_DIC_diff1, # logical (T if nonstat mod has lower DIC, tol of 1)
                   #BF           = BF                   # bayes factor (computed from BIC)
                   signif_fmins_ns_LRT = signif_fmins_ns_LRT, # logical (T if nonstat vs stat has pvalue<0.05, LRT method)
-                  signif_MK_n   = signif_trend_n,
-                  sensslope_n   = n_senss,
-                  pval_MK_n     = pval_MK_n)
+                  signif_MK_n   = signif_trend_n, # significance of trends in "n"
+                  sensslope_n   = n_senss, # sen's slope of trends in "n"
+                  pval_MK_n     = pval_MK_n) # MK test of trends in "n"
 
 
 
@@ -1365,17 +1451,17 @@ significance=list(signif_MK_AMAX= signif_trend_AMAX,   # logical T/F
 # Shape intercept:
 #^******************************************************************************
 # NONSTATIONARY MODEL:
-list_plot_shapeint_ns = plot_maps_param(
+list_plot_shapeint_ns=plot_maps_param(
           var_list      = list(a_w_MAP_ns,a_w_CI_ns,a_w_fmins_ns),#a_w_med_ns,a_w_MaxLik_ns),
           lon_tmp       = lon_tmp,
           lat_tmp       = lat_tmp,
           durations     = durations,
-          mask_shp      = land_shp, # test,
+          mask_shp      = land_shp,
           mask_world    = gg_world,
-          flag_signif   = T,   # logical
+          flag_signif   = T,# logical
           significance  = significance,
           name_var      = "Shape intercept",
-          type_estimate = c("MaxPost","CI 90%","MaxLik fmins"), # "MedianPost","MaxLik"),
+          type_estimate = c("MaxPost","CI 90%","MaxLik fmins"), #"MedianPost","MaxLik"),
           name_model    = "SMEV Nonstationary",
           acronym_model = "ns",
           path_output   = c(paste0(dir.res_maps,"/shape_int/map_shape_int_MaxPost_ns"),
@@ -1390,7 +1476,19 @@ list_plot_shapeint_ns = plot_maps_param(
                                list(name="turbo")),
                               # list(name="turbo"),
                               # list(name="turbo")),
-          crs_map       = crswgs84)
+          crs_map       = crswgs84,
+          title_x       = "Longitude (°E)",
+          title_y       = "Latitude (°N)",
+          breaks_x      = c(6.00001,10,14,18),
+          breaks_y      = c(36.00001,40,44,47.9999),
+          labels_x      = c("6°E","10°E","14°E","18°E"),
+          labels_y      = c("36°N","40°N","44°N","48°N"),
+          limits_x      = c(6,19),
+          limits_y      = c(36,48),
+          alpha_shpworld= 0.2,
+          size_points   = 0.7,
+          flag.saveRDS  = F)
+
 
 # STATIONARY MODEL:
 list_plot_shapeint_stat = plot_maps_param(
@@ -1398,7 +1496,7 @@ list_plot_shapeint_stat = plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, #test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = F, # logical
   significance  = significance,
@@ -1419,7 +1517,19 @@ list_plot_shapeint_stat = plot_maps_param(
                        list(name="turbo")),
                         # list(name="turbo"),
                         # list(name="turbo")),
-  crs_map       = crswgs84) 
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
+
 
 
 # GEV STATIONARY MODEL:
@@ -1428,24 +1538,34 @@ list_plot_shapeint_gev=plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = F, # logical
   significance  = significance,
   name_var      = "Shape intercept",
-  type_estimate = c("MaxPost","CI 90%"), # "MedianPost"),
+  type_estimate = c("MaxPost","CI 90%"), #"MedianPost"),
   name_model    = "GEV Stationary",
   acronym_model = "gev",
   path_output   = c(paste0(dir.res_maps,"/shape_int/map_shape_int_MaxPost_gev"),
                     paste0(dir.res_maps,"/shape_int/map_shape_int_CI90_gev")),
                     # paste0(dir.res_maps, "/shape_int/map_shape_int_medPost_gev")),
-  limits        = list(c(0.5,1.2,0.1),c(0.3,0.7,0.1)), #c(0.4,1.4),c(0.4,1.4)),
+  limits        = list(c(-0.2,0.5,0.1),c(0.3,0.7,0.1)), #c(0.4,1.4),c(0.4,1.4)),
   flag.limits   = T,
   scale_grad    = list(list(name="turbo"),
                        list(name="turbo")),
                       # list(name="turbo")),
-  crs_map       = crswgs84)
-
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 
@@ -1458,7 +1578,7 @@ list_plot_shapeslope_ns=plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = T, # logical
   significance  = significance,
@@ -1478,7 +1598,18 @@ list_plot_shapeslope_ns=plot_maps_param(
                        list(name="rdbl",low="red",high="blue",mid="white",midpoint=0)),
                         # list(name="rdbl",low="red",high= blue",mid="white",midpoint=0),
                         # list(name="rdbl",low="red",high="blue",mid="white",midpoint=0)),
-  crs_map       = crswgs84) 
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 # no limits:
@@ -1487,7 +1618,7 @@ list_plot_shapeslope_ns=plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = T, # logical
   significance  = significance,
@@ -1507,8 +1638,18 @@ list_plot_shapeslope_ns=plot_maps_param(
                        list(name="rdbl",low="red",high="blue",mid="white",midpoint=0)),
                         # list(name="rdbl",low="red",high="blue",mid="white",midpoint=0),
                         # list(name="rdbl",low="red",high="blue",mid="white",midpoint=0)),
-  crs_map       = crswgs84) 
-
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 
@@ -1522,56 +1663,79 @@ list_plot_scaleint_ns = plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = T, # logical
   significance  = significance,
   name_var      = "Scale intercept",
-  type_estimate = c("MaxPost", "CI 90%",  "MaxLik fmins"), #"MedianPost",, "MaxLik"),
+  type_estimate = c("MaxPost","CI 90%","MaxLik fmins"), #"MedianPost",, "MaxLik"),
   name_model    = "SMEV Nonstationary",
   acronym_model = "ns",
-  path_output   = c(paste0(dir.res_maps, "/scale_int/map_scale_int_MaxPost_ns_NOLIM"),
-                    paste0(dir.res_maps, "/scale_int/map_scale_int_CI90_ns_NOLIM"),
-                    paste0(dir.res_maps, "/scale_int/map_scale_int_MaxLikfmins_ns_NOLIM")),
-                    # paste0(dir.res_maps, "/scale_int/map_scale_int_medPost_ns"),
-                    # paste0(dir.res_maps, "/scale_int/map_scale_int_MaxLik_ns")),
-  limits        = list(c(0,5,1), c(0.3,0.8,0.1), c(0,5,1)), #, c(0, 5), c(0, 5)),
+  path_output   = c(paste0(dir.res_maps,"/scale_int/map_scale_int_MaxPost_ns_NOLIM"),
+                    paste0(dir.res_maps,"/scale_int/map_scale_int_CI90_ns_NOLIM"),
+                    paste0(dir.res_maps,"/scale_int/map_scale_int_MaxLikfmins_ns_NOLIM")),
+                    # paste0(dir.res_maps,"/scale_int/map_scale_int_medPost_ns"),
+                    # paste0(dir.res_maps,"/scale_int/map_scale_int_MaxLik_ns")),
+  limits        = list(c(0,5,1),c(0.3,0.8,0.1),c(0,5,1)), #,c(0,5),c(0,5)),
   flag.limits   = F,  # no limits for the scale, they change for different durations.
   scale_grad    = list(list(name="turbo"),
                        list(name="turbo"),
                        list(name="turbo")),
                         # list(name="turbo"),
                         # list(name="turbo")),
-  crs_map       = crswgs84)
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 # STATIONARY MODEL:
 list_plot_scaleint_stat = plot_maps_param(
-  var_list      = list(a_C_MAP_stat, a_C_CI_stat, a_C_fmins_stat), #a_C_med_stat, a_C_MaxLik_stat),
+  var_list      = list(a_C_MAP_stat,a_C_CI_stat,a_C_fmins_stat), #a_C_med_stat,a_C_MaxLik_stat),
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = F, # logical
   significance  = significance,
   name_var      = "Scale intercept",
-  type_estimate = c("MaxPost", "CI 90%", "MaxLik fmins"), #"MedianPost",  "MaxLik"),
+  type_estimate = c("MaxPost","CI 90%","MaxLik fmins"), #"MedianPost","MaxLik"),
   name_model    = "SMEV Stationary",
   acronym_model = "stat",
-  path_output   = c(paste0(dir.res_maps, "/scale_int/map_scale_int_MaxPost_stat_NOLIM"),
-                    paste0(dir.res_maps, "/scale_int/map_scale_int_CI90_stat_NOLIM"),
-                    paste0(dir.res_maps, "/scale_int/map_scale_int_MaxLikfmins_stat_NOLIM")),
-                    # paste0(dir.res_maps, "/scale_int/map_scale_int_medPost_stat"),
-                    # paste0(dir.res_maps, "/scale_int/map_scale_int_MaxLik_stat")),
-  limits        = list(c(0,5,1), c(0.01,0.03,0.01), c(0,5,1)), # c(0, 5), c(0, 5)),
+  path_output   = c(paste0(dir.res_maps,"/scale_int/map_scale_int_MaxPost_stat_NOLIM"),
+                    paste0(dir.res_maps,"/scale_int/map_scale_int_CI90_stat_NOLIM"),
+                    paste0(dir.res_maps,"/scale_int/map_scale_int_MaxLikfmins_stat_NOLIM")),
+                    # paste0(dir.res_maps,"/scale_int/map_scale_int_medPost_stat"),
+                    # paste0(dir.res_maps,"/scale_int/map_scale_int_MaxLik_stat")),
+  limits        = list(c(0,5,1),c(0.01,0.03,0.01),c(0,5,1)), #c(0,5),c(0,5)),
   flag.limits   = F,  # no limits for the scale, they change for different durations.
   scale_grad    = list(list(name="turbo"),
                        list(name="turbo"),
                        list(name="turbo")),
                         # list(name="turbo"),
                         # list(name="turbo")),
-  crs_map       = crswgs84)
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
+
 
 # GEV STATIONARY MODEL:
 list_plot_scaleint_gev=plot_maps_param(
@@ -1579,7 +1743,7 @@ list_plot_scaleint_gev=plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = F, # logical
   significance  = significance,
@@ -1590,17 +1754,27 @@ list_plot_scaleint_gev=plot_maps_param(
   path_output   = c(paste0(dir.res_maps,"/scale_int/map_scale_int_MaxPost_gev_NOLIM"),
                     paste0(dir.res_maps,"/scale_int/map_scale_int_CI90_gev_NOLIM"),
                     paste0(dir.res_maps,"/scale_int/map_scale_int_medPost_gev_NOLIM")),
-                    # paste0(dir.res_maps, "/scale_int/map_scale_int_MaxLikfmins_gev"),
-                    # paste0(dir.res_maps, "/scale_int/map_scale_int_MaxLik_gev")),
-  limits        = list(c(0,5,1),c(0.01,0.03,0.01),c(0,5,1)), # c(0,5),c(0,5)),
+                    # paste0(dir.res_maps,"/scale_int/map_scale_int_MaxLikfmins_gev"),
+                    # paste0(dir.res_maps,"/scale_int/map_scale_int_MaxLik_gev")),
+  limits        = list(c(0,5,1),c(0.01,0.03,0.01),c(0,5,1)), #c(0,5),c(0,5)),
   flag.limits   = F,  # no limits for the scale, they change for different durations.
   scale_grad    = list(list(name="turbo"),
                        list(name="turbo"),
                        list(name="turbo")),
                         # list(name="turbo"),
                         # list(name="turbo")),
-  crs_map       = crswgs84)
-
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 
@@ -1613,7 +1787,7 @@ list_plot_scaleslope_ns = plot_maps_param(
   lon_tmp       = lon_tmp,
   lat_tmp       = lat_tmp,
   durations     = durations,
-  mask_shp      = land_shp, # test,
+  mask_shp      = land_shp,
   mask_world    = gg_world,
   flag_signif   = T, # logical
   significance  = significance,
@@ -1626,14 +1800,25 @@ list_plot_scaleslope_ns = plot_maps_param(
                     paste0(dir.res_maps,"/scale_slope/map_scale_slope_MaxLikfmins_ns_NOLIM")),
                     # paste0(dir.res_maps,"/scale_slope/map_scale_slope_medPost_ns"),
                     # paste0(dir.res_maps,"/scale_slope/map_scale_slope_MaxLik_ns")),
-  limits        = list(c(-0.02,0.2,0.01),c(0.01,0.03,0.005),c(-0.02, 0.02,0.01)), #c(-0.02, 0.02),c(-0.02, 0.02)),
+  limits        = list(c(-0.02,0.2,0.01),c(0.01,0.03,0.005),c(-0.02,0.02,0.01)), #c(-0.02, 0.02),c(-0.02, 0.02)),
   flag.limits   = F,
   scale_grad    = list(list(name="rdbl",low="red",high="blue",mid="white",midpoint=0),
                        list(name="turbo"),
                        list(name="rdbl",low="red",high="blue",mid="white",midpoint=0)),
                         # list(name="rdbl",low="red",high="blue",mid="white",midpoint=0),
                         # list(name="rdbl",low="red",high="blue",mid="white",midpoint=0)),
-  crs_map       = crswgs84) 
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 # with fix limits:
@@ -1647,40 +1832,51 @@ list_plot_scaleslope_ns_FIX=plot_maps_param(
   flag_signif   = T, # logical
   significance  = significance,
   name_var      = "Scale slope",
-  type_estimate = c("MaxPost","CI 90%","MaxLik fmins"), # "MedianPost","MaxLik"),
+  type_estimate = c("MaxPost","CI 90%","MaxLik fmins"), #"MedianPost","MaxLik"),
   name_model    = "SMEV Nonstationary",
   acronym_model = "ns",
   path_output   = c(paste0(dir.res_maps,"/scale_slope/map_scale_slope_MaxPost_ns"),
                     paste0(dir.res_maps,"/scale_slope/map_scale_slope_CI90_ns"),
                     paste0(dir.res_maps,"/scale_slope/map_scale_slope_MaxLikfmins_ns")),
-  # paste0(dir.res_maps,"/scale_slope/map_scale_slope_medPost_ns"),
-  # paste0(dir.res_maps,"/scale_slope/map_scale_slope_MaxLik_ns")),
-  limits        = list(c(-0.1,0.1,0.05),c(0.01,0.03,0.005),c(-0.1, 0.1,0.05)), #c(-0.02, 0.02), c(-0.02, 0.02)),
+                    # paste0(dir.res_maps,"/scale_slope/map_scale_slope_medPost_ns"),
+                    # paste0(dir.res_maps,"/scale_slope/map_scale_slope_MaxLik_ns")),
+  limits        = list(c(-0.1,0.1,0.05),c(0.01,0.03,0.005),c(-0.1,0.1,0.05)), #c(-0.02,0.02),c(-0.02,0.02)),
   flag.limits   = T,
   scale_grad    = list(list(name="rdbl",low="red",high="blue",mid="white",midpoint=0),
                        list(name="turbo"),
                        list(name="rdbl",low="red",high="blue",mid="white", midpoint=0)),
-  # list(name="rdbl", low ="red",high="blue",mid="white",midpoint=0),
-  # list(name="rdbl", low ="red",high="blue",mid="white",midpoint=0)),
-  crs_map       = crswgs84) 
+                       #list(name="rdbl",low ="red",high="blue",mid="white",midpoint=0),
+                       #list(name="rdbl",low ="red",high="blue",mid="white",midpoint=0)),
+  crs_map       = crswgs84,
+  title_x       = "Longitude (°E)",
+  title_y       = "Latitude (°N)",
+  breaks_x      = c(6.00001,10,14,18),
+  breaks_y      = c(36.00001,40,44,47.9999),
+  labels_x      = c("6°E","10°E","14°E","18°E"),
+  labels_y      = c("36°N","40°N","44°N","48°N"),
+  limits_x      = c(6,19),
+  limits_y      = c(36,48),
+  alpha_shpworld= 0.2,
+  size_points   = 0.7,
+  flag.saveRDS  = F)
 
 
 
 #^******************************************************************************
 #save all plots to .RDS Rdata file:
 #^******************************************************************************
-saveRDS(list(list_plot_shapeint_ns    = list_plot_shapeint_ns,
-             list_plot_shapeint_stat  = list_plot_shapeint_stat,
-             list_plot_shapeint_gev   = list_plot_shapeint_gev,
-             list_plot_shapeslope_ns  = list_plot_shapeslope_ns,
-             list_plot_scaleint_ns    = list_plot_scaleint_ns,
-             list_plot_scaleint_stat  = list_plot_scaleint_stat,
-             list_plot_scaleint_gev   = list_plot_scaleint_gev,
-             list_plot_scaleslope_ns  = list_plot_scaleslope_ns
+saveRDS(list(list_plot_shapeint_ns   =list_plot_shapeint_ns,
+             list_plot_shapeint_stat =list_plot_shapeint_stat,
+             list_plot_shapeint_gev  =list_plot_shapeint_gev,
+             list_plot_shapeslope_ns =list_plot_shapeslope_ns,
+             list_plot_scaleint_ns   =list_plot_scaleint_ns,
+             list_plot_scaleint_stat =list_plot_scaleint_stat,
+             list_plot_scaleint_gev  =list_plot_scaleint_gev,
+             list_plot_scaleslope_ns =list_plot_scaleslope_ns
              ),
         file=paste0(dir.res_maps,'list_plot_smevparam_',sat_prod,'.rds'))
 
-all.plots_smev = plot_grid(
+all.plots_smev=plot_grid(
   list_plot_shapeint_ns$map_var_ALLPIX_allvar_horiz$MaxPost,
   list_plot_shapeslope_ns$map_var_ALLPIX_allvar_horiz$MaxPost,
   list_plot_scaleint_ns$map_var_ALLPIX_allvar_horiz$MaxPost,
@@ -1696,7 +1892,7 @@ all.plots_smev_LAND=plot_grid(
   list_plot_shapeint_ns$map_var_LAND_allvar_horiz$MaxPost,
   list_plot_shapeslope_ns$map_var_LAND_allvar_horiz$MaxPost,
   list_plot_scaleint_ns$map_var_LAND_allvar_horiz$MaxPost,
-  list_plot_scaleslope_ns$map_var_LAND_allvar_horiz$MaxPost, # + theme(plot.title = element_text(size= 20, hjust = 0.5)),
+  list_plot_scaleslope_ns$map_var_LAND_allvar_horiz$MaxPost, # +theme(plot.title=element_text(size=20,hjust=0.5)),
   label_size=20,labels=NULL,ncol=1,nrow=4,rel_widths=c(1,1,1,1),
   # rel_heights=c(1.05,0.98,0.98,0.98),
   rel_heights=c(1,1,1,1),align='hv')
@@ -1710,19 +1906,23 @@ ggsave(all.plots_smev_LAND,
 
 
 
-  
+
+
+
+
+
 
 ################################################################################
 # PLOT CHANGES % of SMEV PAR (MAXPOST) AMAX, quant2yrs, Shape, Scale, n 
 ################################################################################
 # list required for the plots:
-var_change_list= list(AMAX_change  = AMAX_change, # change in AMAX
-                      qnt2yr_change= quant_smev_ns_2yr_change, # change in 2yrs return level
-                      a_C_MAP_ns   = a_C_MAP_ns, # scale intercept maxpost NS
-                      b_C_MAP_ns   = b_C_MAP_ns, # scale slope maxpost NS
-                      a_w_MAP_ns   = a_w_MAP_ns, # shape intercept maxpost NS
-                      b_w_MAP_ns   = b_w_MAP_ns, # shape slope maxpost NS
-                      n_change     = n_change)   # change in n
+var_change_list=list(AMAX_change   = AMAX_change, # change in AMAX
+                     qnt2yr_change = quant_smev_ns_2yr_change, # change in 2yrs return level
+                     a_C_MAP_ns    = a_C_MAP_ns, # scale intercept maxpost NS
+                     b_C_MAP_ns    = b_C_MAP_ns, # scale slope maxpost NS
+                     a_w_MAP_ns    = a_w_MAP_ns, # shape intercept maxpost NS
+                     b_w_MAP_ns    = b_w_MAP_ns, # shape slope maxpost NS
+                     n_change      = n_change)   # change in n
 
 plot_maps_changes_amax2yrs(var_change_list= var_change_list,
                            lon_tmp        = lon_tmp,
@@ -1740,7 +1940,19 @@ plot_maps_changes_amax2yrs(var_change_list= var_change_list,
                            path_output    = paste0(dir.res_maps, '/amax_vs_qnt/'),
                            limits         = list(c(-20,20),c(-20,20),c(-20,20),c(-20,20),c(-20,20)),
                            flag.limits    = T,
-                           crs_map        = crswgs84)
+                           crs_map        = crswgs84,
+                           title_x        = "Longitude (°E)",
+                           title_y        = "Latitude (°N)",
+                           breaks_x       = c(6.00001,10,14,18),
+                           breaks_y       = c(36.00001,40,44,47.9999),
+                           labels_x       = c("6°E","10°E","14°E","18°E"),
+                           labels_y       = c("36°N","40°N","44°N","48°N"),
+                           limits_x       = c(6,19),
+                           limits_y       = c(36,48),
+                           alpha_shpworld = 0.2,
+                           size_points    = 0.5,
+                           flag.saveRDS   = F)
+
 
 
 
@@ -1749,24 +1961,23 @@ plot_maps_changes_amax2yrs(var_change_list= var_change_list,
 # PLOT UNCERTAINTY of %changes of 2yrs quantile, shape, scale (NONSTAT SMEV)
 ################################################################################
 # list required for the plots:
-var_unc_change_list= list(unc_qnt2yr_change=list(unc_qnt2yrs_1h,
-                                                 unc_qnt2yrs_3h,
-                                                 unc_qnt2yrs_6h,
-                                                 unc_qnt2yrs_24h),
-                          unc_shape_change =list(unc_shape_1h,
-                                                 unc_shape_3h,
-                                                 unc_shape_6h,
-                                                 unc_shape_24h),
-                          unc_scale_change =list(unc_scale_1h,
-                                                 unc_scale_3h,
-                                                 unc_scale_6h,
-                                                 unc_scale_24h))
-
-plot_maps_changes_uncert(var_unc_change_list= var_unc_change_list,
+var_unc_change_list=list(unc_qnt2yr_change=list(unc_qnt2yrs_1h,
+                                                unc_qnt2yrs_3h,
+                                                unc_qnt2yrs_6h,
+                                                unc_qnt2yrs_24h),
+                         unc_shape_change =list(unc_shape_1h,
+                                                unc_shape_3h,
+                                                unc_shape_6h,
+                                                unc_shape_24h),
+                         unc_scale_change =list(unc_scale_1h,
+                                                unc_scale_3h,
+                                                unc_scale_6h,
+                                                unc_scale_24h))
+plot_maps_changes_uncert(var_unc_change_list=var_unc_change_list,
                          lon_tmp        = lon_tmp,
                          lat_tmp        = lat_tmp,
                          durations      = durations,
-                         mask_shp       = land_shp, # test,
+                         mask_shp       = land_shp,
                          mask_world     = gg_world,
                          flag_signif    = T,
                          significance   = significance,
@@ -1775,14 +1986,27 @@ plot_maps_changes_uncert(var_unc_change_list= var_unc_change_list,
                          year_ref       = year_halfperiod,
                          year_ref_id    = halfperiod,
                          path_output    = paste0(dir.res_maps, '/uncert/'),
-                         limits         = list(c(20,50,10), c(20,30,2),c(20,50,10)),
+                         limits         = list(c(20,50,10),c(20,30,2),c(20,50,10)),
                          flag.limits    = T,
                          crs_map        = crswgs84,
                          nbin           = 20,
                          bar.direction  = "horizontal",
                          legend.position= "bottom",
                          barwidth       = 25,
-                         barheight      = 0.6)
+                         barheight      = 0.6,
+                         title_x        = "Longitude (°E)",
+                         title_y        = "Latitude (°N)",
+                         breaks_x       = c(6.00001,10,14,18),
+                         breaks_y       = c(36.00001,40,44,47.9999),
+                         labels_x       = c("6°E","10°E","14°E","18°E"),
+                         labels_y       = c("36°N","40°N","44°N","48°N"),
+                         limits_x       = c(6,19),
+                         limits_y       = c(36,48),
+                         alpha_shpworld = 0.2,
+                         size_points    = 0.5,
+                         flag.saveRDS   = F)
+
+
 
 
 
@@ -1795,11 +2019,11 @@ var_qnt_change_list=list(quant_smev_ns_2yr_change=quant_smev_ns_2yr_change,
                          quant_smev_ns_20yr_change=quant_smev_ns_20yr_change,
                          quant_smev_ns_50yr_change=quant_smev_ns_50yr_change)
 
-plot_maps_changes_qnt(var_qnt_change_list= var_qnt_change_list,
+plot_maps_changes_qnt(var_qnt_change_list=var_qnt_change_list,
                       lon_tmp        = lon_tmp,
                       lat_tmp        = lat_tmp,
                       durations      = durations,
-                      mask_shp       = land_shp, # test,
+                      mask_shp       = land_shp,
                       mask_world     = gg_world,
                       flag_signif    = T,
                       significance   = significance,
@@ -1817,7 +2041,18 @@ plot_maps_changes_qnt(var_qnt_change_list= var_qnt_change_list,
                       legend.position= "bottom",
                       barwidth       = 25,
                       barheight      = 0.6,
-                      size_text_plot = 6)
+                      size_text_plot = 6,
+                      title_x        = "Longitude (°E)",
+                      title_y        = "Latitude (°N)",
+                      breaks_x       = c(6.00001,10,14,18),
+                      breaks_y       = c(36.00001,40,44,47.9999),
+                      labels_x       = c("6°E","10°E","14°E","18°E"),
+                      labels_y       = c("36°N","40°N","44°N","48°N"),
+                      limits_x       = c(6,19),
+                      limits_y       = c(36,48),
+                      alpha_shpworld = 0.2,
+                      size_points    = 0.5,
+                      flag.saveRDS   = F)
 
 
 
@@ -1832,25 +2067,35 @@ var_durat_change_list= list(qnt2yr_change=quant_smev_ns_2yr_change, # change in 
                             a_w_MAP_ns   =a_w_MAP_ns, # shape intercept maxpost NS
                             b_w_MAP_ns   =b_w_MAP_ns, # shape slope maxpost NS)
                             n_change     =n_change)   # change in n
-user_polygons<-read_sf(dsn=shp_user)
+user_polygons<-read_sf(dsn=dir_shp_user)
 
 plot_maps_changes_durat(
-  var_durat_change_list = var_durat_change_list,
-  lon_tmp        = lon_tmp,
-  lat_tmp        = lat_tmp,
-  durations      = durations,
-  mask_shp       = land_shp, # test,
-  mask_world     = gg_world,
-  mask_user      = user_polygons,
-  flag_signif    = T,
-  significance   = significance,
-  sat_acron      = sat_acron,
-  period         = '2001-2024',
-  year_ref       = year_halfperiod,
-  year_ref_id    = halfperiod,
-  path_output    = paste0(dir.res_maps, '/durat/'),
-  limits         = c(-30,30),
-  flag.limits    = T,
-  crs_map        = crswgs84)
+              var_durat_change_list=var_durat_change_list,
+              lon_tmp        = lon_tmp,
+              lat_tmp        = lat_tmp,
+              durations      = durations,
+              mask_shp       = land_shp,
+              mask_world     = gg_world,
+              mask_user      = user_polygons,
+              flag_signif    = T,
+              significance   = significance,
+              sat_acron      = sat_acron,
+              period         = '2001-2024',
+              year_ref       = year_halfperiod,
+              year_ref_id    = halfperiod,
+              path_output    = paste0(dir.res_maps, '/durat/'),
+              limits         = c(-30,30),
+              flag.limits    = T,
+              crs_map        = crswgs84,
+              title_x        = "Longitude (°E)",
+              title_y        = "Latitude (°N)",
+              breaks_x       = c(6.00001,10,14,18),
+              breaks_y       = c(36.00001,40,44,47.9999),
+              labels_x       = c("6°E","10°E","14°E","18°E"),
+              labels_y       = c("36°N","40°N","44°N","48°N"),
+              limits_x       = c(6,19),
+              limits_y       = c(36,48),
+              alpha_shpworld = 0.2,
+              flag.saveRDS   = F)
 
 

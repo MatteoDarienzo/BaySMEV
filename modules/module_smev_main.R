@@ -8,7 +8,7 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
                               time_resolution   = 60,
                               min_ev_duration   = 30,
                               separation_in_min = 1440,
-                              duration          = c(1,3,6,24)*60,
+                              duration          = c(1,3,6,24)*60, # minutes!
                               target_T          = c(2,5,10,20,25,50,100),
                               thr_leftcens      = 0.9,
                               estim_algorithm   = "cmdstan", # "fminsearch"
@@ -94,6 +94,8 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
   #^*   https://github.com/MatteoDarienzo/BayDERS                              #
   #^* - packages "rstan" and "cmdstanr" for stan Bayesian inference + MCMC alg.#
   #^* - package "adaptMCMC" for adaptive metropolis algorithm.                 #
+  #^* For the trend analysis it uses package 'trend' of Thorsten Pohlert:      #
+  #^* (https://cran.r-project.org/web/packages/trend/index.html)               #
   #^***************************************************************************#
   #^*                              DISCLAIMER:                                 #
   #^***************************************************************************#
@@ -337,9 +339,9 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
   # define the blocks (years in this case)
   blocks_id=s$yr
   # analysed years of available data
-  blocks = unique(blocks_id)
+  blocks=unique(blocks_id)
   # analysed years of all data (including nan)
-  blocks_all = unique(year(s$time))
+  blocks_all=unique(year(s$time))
   # number of years
   M=length(blocks_all) 
   # Initialize Annual Maxima with zeros:
@@ -417,10 +419,10 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
     # if stat. significant trend is estimated then update and switch on the 
     # flag for more in-depth analysis and saving all results:
     if (flag_saveALL){
-      trendAMAX = trend_AMAX(s             =s, 
-                             alpha         =0.05, # significance level 
-                             dir.res_trend =dir.res_pix,
-                             dur           =dur)
+      trendAMAX=trend_AMAX(s=s, 
+                           alpha=0.05, # significance level 
+                           dir.res_trend=dir.res_pix,
+                           dur=dur)
       # save trend results to object "s":
       s$signif_trend[[dur]] = trendAMAX$signif_trend
       s$res_MK[[dur]]       = trendAMAX$res_MK
@@ -674,12 +676,14 @@ smev_analysis_main = function(rain.df,       # rainfall timeseries (dataframe)
                                             dir.res_pix = dir.res_pix)
       quantileplot_smev_ALL= c(quantileplot_smev_ALL, list(quantileplot_smev))
     }
-      # end loop on durations !!!
+    # end loop on durations !!!
   }
   # save the AMS array
   s$AMS = AMS
   # update object s with quantiles for each duration:
-  s=c(s, quantiles_smev=list(s_tmp_SMEV), quantiles_mev=list(s_tmp_MEV))
+  s=c(s, 
+      quantiles_smev=list(s_tmp_SMEV), 
+      quantiles_mev=list(s_tmp_MEV))
   
   
   
